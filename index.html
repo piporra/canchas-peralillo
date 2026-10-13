@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Canchas Club Peralillo</title>
+<meta name="description" content="Arriendo de canchas del Club de Tenis Peralillo">
+<meta name="theme-color" content="#0b4a2c">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Canchas Peralillo">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@600;700;800&family=Nunito+Sans:wght@400;600;700;800&display=swap">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="app">
+  <header class="top">
+    <img src="logo.png" alt="Logo Club de Tenis Peralillo">
+    <div class="brand"><b>Club de Tenis Peralillo</b><span>Arriendo de canchas</span></div>
+  </header>
+
+  <main>
+    <div class="banner warn" id="cfgErr" hidden>Falta configurar la conexión con la base de datos (archivo config.js).</div>
+
+    <!-- RESERVAR -->
+    <section class="view" id="v-book">
+      <div class="sport">
+        <div class="ico"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M5.6 5.6c3.5 3.5 3.5 9.3 0 12.8M18.4 5.6c-3.5 3.5-3.5 9.3 0 12.8"/></svg></div>
+        <div><small>Deporte</small><strong>Tenis · arriendo de canchas</strong></div>
+      </div>
+      <div class="promo"><b>Gratis</b><span>Las mañanas son gratis para todos. Los socios además juegan gratis todo el día los sábados, domingos y feriados (días marcados con <span style="color:var(--orange);font-weight:800">●</span>).</span></div>
+
+      <div class="courts" id="courts"></div>
+
+      <h2 class="month" id="month"></h2>
+      <div class="dates">
+        <button class="arrow" id="prev" aria-label="Días anteriores"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M15 6l-6 6 6 6"/></svg></button>
+        <div class="strip" id="strip"></div>
+        <button class="arrow" id="next" aria-label="Días siguientes"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M9 6l6 6-6 6"/></svg></button>
+      </div>
+      <div class="banner" id="dayInfo"></div>
+      <p class="note" id="winInfo" style="margin-top:-6px"></p>
+
+      <p class="label">Selecciona un horario</p>
+      <div class="slots" id="slots"></div>
+      <div class="legend"><span><i style="background:var(--surface);border:1px solid var(--line)"></i>Disponible</span><span><i style="background:var(--green)"></i>Seleccionado</span><span><i style="background:var(--taken)"></i>Ocupado</span></div>
+    </section>
+
+    <!-- INGRESAR / CREAR CUENTA -->
+    <section class="view" id="v-auth" hidden>
+      <h3>Tu cuenta del club</h3>
+      <div class="auth-tabs" id="authTabs">
+        <button type="button" data-m="login" aria-pressed="true">Ingresar</button>
+        <button type="button" data-m="signup" aria-pressed="false">Crear cuenta</button>
+      </div>
+      <div class="card">
+        <form id="authForm" novalidate>
+          <div id="signupFields" hidden style="display:flex;flex-direction:column;gap:10px">
+            <label for="a-name">Nombre y apellido<input id="a-name" autocomplete="name" placeholder="Ej: Camila Rojas"></label>
+            <label for="a-phone">Teléfono<input id="a-phone" type="tel" autocomplete="tel" placeholder="+56 9 1234 5678"></label>
+            <label style="flex-direction:row;align-items:center;gap:8px;font-weight:600"><input id="a-member" type="checkbox" style="width:18px;height:18px">Soy socio del club</label>
+          </div>
+          <label for="a-email">Correo<input id="a-email" type="email" autocomplete="email" placeholder="tu@correo.cl"></label>
+          <label for="a-pass">Contraseña<input id="a-pass" type="password" autocomplete="current-password" placeholder="Mínimo 6 caracteres"></label>
+          <p class="err" id="authErr" hidden></p>
+          <p class="note" id="authOk" hidden></p>
+          <button class="cta" id="authBtn">Ingresar</button>
+          <button type="button" class="link" id="forgot">¿Olvidaste tu contraseña?</button>
+        </form>
+      </div>
+    </section>
+
+    <!-- PERFIL (completar o editar) -->
+    <section class="view" id="v-setup" hidden>
+      <h3 id="setupTitle">Completa tus datos</h3>
+      <div class="card">
+        <form id="setupForm" novalidate>
+          <label for="s-name">Nombre y apellido<input id="s-name" autocomplete="name"></label>
+          <label for="s-phone">Teléfono<input id="s-phone" type="tel" autocomplete="tel"></label>
+          <label style="flex-direction:row;align-items:center;gap:8px;font-weight:600"><input id="s-member" type="checkbox" style="width:18px;height:18px">Soy socio del club</label>
+          <p class="err" id="setupErr" hidden></p>
+          <button class="cta">Guardar datos</button>
+        </form>
+      </div>
+    </section>
+
+    <!-- NUEVA CONTRASEÑA -->
+    <section class="view" id="v-recover" hidden>
+      <h3>Nueva contraseña</h3>
+      <div class="card">
+        <form id="recoverForm" novalidate>
+          <label for="r-pass">Nueva contraseña<input id="r-pass" type="password" autocomplete="new-password" placeholder="Mínimo 6 caracteres"></label>
+          <p class="err" id="recoverErr" hidden></p>
+          <button class="cta">Guardar contraseña</button>
+        </form>
+      </div>
+    </section>
+
+    <!-- CONFIRMAR -->
+    <section class="view" id="v-confirm" hidden>
+      <button class="back" id="back">‹ Volver a horarios</button>
+      <div class="card summary">
+        <h3>Tu reserva</h3>
+        <dl style="margin-top:12px" id="sumList"></dl>
+        <div class="total"><span>Total</span><b id="sumTotal"></b></div>
+      </div>
+      <p class="err" id="confirmErr" hidden></p>
+      <p class="note">Tu reserva queda confirmada al instante. Si corresponde pago, debes realizarlo en la Municipalidad, de lunes a viernes, antes de jugar.</p>
+    </section>
+
+    <!-- CONFIRMADA -->
+    <section class="view" id="v-done" hidden>
+      <div class="card done">
+        <div class="check"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3"><path d="M5 12l5 5 9-10"/></svg></div>
+        <h3>Reserva confirmada</h3>
+        <p style="margin:0" id="doneText"></p>
+        <span class="chip confirmada">Confirmada</span>
+        <small style="color:var(--muted)">Código</small>
+        <div class="code" id="doneCode"></div>
+        <p class="note">La verás en <b>Reservas</b>. Si tu reserva tiene costo, paga en la Municipalidad de lunes a viernes, antes de jugar.</p>
+      </div>
+    </section>
+
+    <!-- MIS RESERVAS -->
+    <section class="view" id="v-list" hidden>
+      <h3>Mis reservas</h3>
+      <div id="list" style="display:flex;flex-direction:column;gap:10px"></div>
+    </section>
+
+    <!-- ADMIN -->
+    <section class="view" id="v-admin" hidden>
+      <h3>Administración</h3>
+      <div class="tabs-adm" id="admTabs">
+        <button data-a="ok" aria-pressed="true">Reservas</button>
+        <button data-a="anul" aria-pressed="false">Anuladas<span class="badge" id="anulBadge" hidden></span></button>
+        <button data-a="fer" aria-pressed="false">Feriados</button>
+        <button data-a="tar" aria-pressed="false">Precios y horarios</button>
+      </div>
+      <div id="admBody" style="display:flex;flex-direction:column;gap:10px"></div>
+    </section>
+
+    <!-- PERFIL -->
+    <section class="view" id="v-profile" hidden>
+      <h3>Perfil</h3>
+      <div class="card" style="display:flex;flex-direction:column;gap:8px" id="pCard">
+        <div><small style="color:var(--muted)">Nombre</small><div id="pName" style="font-weight:800"></div></div>
+        <div><small style="color:var(--muted)">Teléfono</small><div id="pPhone" style="font-weight:800"></div></div>
+        <div><small style="color:var(--muted)">Correo</small><div id="pEmail" style="font-weight:800;overflow-wrap:anywhere"></div></div>
+        <div><small style="color:var(--muted)">Tipo</small><div id="pType" style="font-weight:800"></div></div>
+        <div style="display:flex;gap:8px;margin-top:4px"><button class="btn-line" id="editProfile">Editar datos</button><button class="btn-line" id="logout">Cerrar sesión</button></div>
+      </div>
+      <div class="card" id="pLogin" hidden>
+        <p style="margin:0 0 10px">Ingresa con tu cuenta para reservar y ver tus reservas.</p>
+        <button class="cta" id="goLogin">Ingresar o crear cuenta</button>
+      </div>
+      <div class="card" style="display:flex;flex-direction:column;gap:6px">
+        <strong>Horario del club</strong>
+        <span style="color:var(--muted)" id="pHours"></span>
+        <strong style="margin-top:6px">Reservas</strong>
+        <span style="color:var(--muted)" id="pRules"></span>
+        <strong style="margin-top:6px">Valores por bloque</strong>
+        <span style="color:var(--muted)" id="pRates"></span>
+        <strong style="margin-top:6px">Pago</strong>
+        <span style="color:var(--muted)">En la Municipalidad, de lunes a viernes, antes de jugar.</span>
+      </div>
+    </section>
+  </main>
+
+  <div class="cta-bar" id="ctaBar"><div class="cta-wrap"><p id="ctaInfo">Elige un horario disponible</p><button class="cta" id="cta" disabled>Siguiente</button></div></div>
+
+  <nav class="bottom"><div class="in" id="nav">
+    <button data-tab="book" aria-current="page"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>Reservar</button>
+    <button data-tab="list"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>Reservas</button>
+    <button data-tab="admin" id="navAdmin" hidden><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l8 4v5c0 5-3.5 8-8 9-4.5-1-8-4-8-9V7z"/><path d="M8.5 12l2.5 2.5 4.5-5"/></svg>Admin</button>
+    <button data-tab="profile"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/></svg>Perfil</button>
+  </div></nav>
+</div>
+<div class="toast" id="toast" hidden></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.57.4/dist/umd/supabase.js"></script>
+<script src="config.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

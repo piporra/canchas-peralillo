@@ -1,0 +1,15 @@
+{
+  "name": "Canchas Club de Tenis Peralillo",
+  "short_name": "Canchas Peralillo",
+  "description": "Arriendo de canchas del Club de Tenis Peralillo",
+  "lang": "es-CL",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f3f5f2",
+  "theme_color": "#0b4a2c",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }
+  ]
+}
