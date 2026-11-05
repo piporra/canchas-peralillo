@@ -140,6 +140,19 @@ as $$
   where r.estado = 'confirmada' and r.fecha between desde and hasta;
 $$;
 
+-- Agenda con nombres: solo para socios con sesión iniciada.
+create or replace function public.agenda(desde date, hasta date)
+returns table (cancha int, fecha date, hora int, nombre text, es_mio boolean)
+language sql stable security definer set search_path = public
+as $$
+  select r.cancha, r.fecha, r.hora, p.nombre, r.user_id = auth.uid()
+  from public.reservas r
+  join public.perfiles p on p.id = r.user_id
+  where auth.uid() is not null
+    and r.estado = 'confirmada'
+    and r.fecha between desde and hasta;
+$$;
+
 -- Crear una reserva aplicando todas las reglas del club.
 -- Solo socios, sin costo. Fines de semana se abren el jueves (configurable),
 -- feriados 2 días antes, y máximo una cancha por socio al día.
@@ -265,4 +278,6 @@ grant execute on function public.reservar(int, date, int) to authenticated;
 grant execute on function public.anular(text) to authenticated;
 grant execute on function public.liberar(text) to authenticated;
 grant execute on function public.ocupados(date, date) to anon, authenticated;
+revoke all on function public.agenda(date, date) from public, anon;
+grant execute on function public.agenda(date, date) to authenticated;
 grant execute on function public.es_admin() to anon, authenticated;

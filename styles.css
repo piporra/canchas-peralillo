@@ -141,3 +141,7 @@ h3{margin:0;font-family:var(--display);font-size:22px;text-transform:uppercase;l
 .auth-tabs button[aria-pressed="true"]{background:var(--green);border-color:var(--green);color:#fff}
 .link{background:none;border:0;color:var(--green);font-weight:800;padding:0;text-decoration:underline}
 .btn-line{background:none;border:1px solid var(--line);border-radius:999px;padding:11px;font-weight:800;width:100%}
+.slot.who:disabled{text-decoration:none;color:var(--ink)}
+.slot.who:disabled small{color:var(--muted);font-weight:700;overflow-wrap:anywhere}
+.slot.mine:disabled{background:var(--green-soft);border-color:var(--green);color:var(--green)}
+.slot.mine:disabled small{color:var(--green)}

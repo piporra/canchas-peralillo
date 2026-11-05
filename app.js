@@ -22,7 +22,7 @@ const today=new Date();today.setHours(12,0,0,0);
 const st={court:1,offset:0,date:key(today),hour:null,view:"book",adm:"ok",authMode:"login",
   uid:null,email:"",isAdmin:false,profile:null,
   club:{feriados:[],soloFinde:true,abreFindeDia:4,abreFeriadoDias:2,limiteDiario:1,diasAnticipacion:7},
-  occupied:new Set(),mine:[],adminRes:[],draft:null,afterLogin:null};
+  occupied:new Set(),who:new Map(),mine:[],adminRes:[],draft:null,afterLogin:null};
 
 /* ---------- reglas del club ---------- */
 const toPairs=a=>(a||[]).map(x=>Array.isArray(x)?x:[x.ini,x.fin]);
@@ -62,8 +62,10 @@ if(!configured)$("cfgErr").hidden=false;
 
 async function loadConfig(){if(!sb)return;const {data}=await sb.from("config").select("datos").eq("id",1).maybeSingle();if(data&&data.datos)st.club={...st.club,...data.datos}}
 async function loadOccupied(){if(!sb)return;const end=new Date(today);end.setDate(end.getDate()+14);
-  const {data,error}=await sb.rpc("ocupados",{desde:key(today),hasta:key(end)});if(error)return;
-  st.occupied=new Set((data||[]).map(r=>`${r.fecha}|${r.cancha}|${r.hora}`))}
+  const args={desde:key(today),hasta:key(end)};
+  const {data,error}=st.uid?await sb.rpc("agenda",args):await sb.rpc("ocupados",args);if(error)return;
+  st.occupied=new Set((data||[]).map(r=>`${r.fecha}|${r.cancha}|${r.hora}`));
+  st.who=new Map((data||[]).filter(r=>"nombre" in r).map(r=>[`${r.fecha}|${r.cancha}|${r.hora}`,{nombre:r.nombre,mio:r.es_mio}]))}
 async function loadMine(){st.mine=[];if(!sb||!st.uid)return;
   const {data}=await sb.from("reservas").select("*").eq("user_id",st.uid).gte("fecha",key(today)).order("fecha").order("hora");st.mine=data||[]}
 async function loadAdmin(){st.adminRes=[];if(!sb||!st.isAdmin)return;
@@ -101,7 +103,9 @@ function renderDates(){
 function renderSlots(){
   if(!bookable(st.date)){$("slots").innerHTML="";return}
   $("slots").innerHTML=blocksFor(st.date).map(([h,e])=>{const t=isTaken(st.date,st.court,h);
-    return `<button class="slot" data-h="${h}" ${t?"disabled":""} aria-pressed="${st.hour===h}">${hh(h)} – ${hh(e)}<small>${t?"No disponible":"Disponible"}</small></button>`}).join("");
+    const w=st.who.get(`${st.date}|${st.court}|${h}`);
+    const lab=!t?"Disponible":w?(w.mio?"Tu reserva":`Reservada por ${esc(w.nombre)}`):st.occupied.has(`${st.date}|${st.court}|${h}`)?(st.uid?"Reservada":"Reservada · ingresa para ver por quién"):"No disponible";
+    return `<button class="slot${w?" who":""}${w&&w.mio?" mine":""}" data-h="${h}" ${t?"disabled":""} aria-pressed="${st.hour===h}">${hh(h)} – ${hh(e)}<small>${lab}</small></button>`}).join("");
 }
 function renderCta(){
   const bar=$("ctaBar"),b=$("cta"),i=$("ctaInfo");
