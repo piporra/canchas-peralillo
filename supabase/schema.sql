@@ -23,7 +23,7 @@ create table if not exists public.perfiles (
   id        uuid primary key references auth.users on delete cascade,
   nombre    text not null check (char_length(nombre) between 2 and 80),
   telefono  text not null check (char_length(telefono) between 8 and 20),
-  socio     boolean not null default false,
+  socio     boolean not null default true,
   creado    timestamptz not null default now()
 );
 alter table public.perfiles enable row level security;
@@ -58,11 +58,10 @@ create policy "config: admin edita" on public.config
 
 insert into public.config (id, datos) values (1, '{
   "soloFinde": true,
-  "precioSemana": 16000,
-  "precioFinde": 16000,
-  "mananaHasta": 12,
+  "abreFindeDia": 4,
+  "abreFeriadoDias": 2,
+  "limiteDiario": 1,
   "diasAnticipacion": 7,
-  "limiteFinde": 2,
   "jornadaSemana": [{"ini":8,"fin":10},{"ini":10,"fin":12},{"ini":16,"fin":18},{"ini":18,"fin":20},{"ini":20,"fin":21}],
   "jornadaFinde":  [{"ini":8,"fin":10},{"ini":10,"fin":12},{"ini":12,"fin":14},{"ini":14,"fin":16},{"ini":16,"fin":18}],
   "feriados": [
@@ -142,6 +141,8 @@ as $$
 $$;
 
 -- Crear una reserva aplicando todas las reglas del club.
+-- Solo socios, sin costo. Fines de semana se abren el jueves (configurable),
+-- feriados 2 días antes, y máximo una cancha por socio al día.
 create or replace function public.reservar(p_cancha int, p_fecha date, p_hora int)
 returns public.reservas
 language plpgsql security definer set search_path = public
@@ -150,40 +151,48 @@ declare
   cfg      jsonb;
   hoy      date := (now() at time zone 'America/Santiago')::date;
   hora_ya  int  := extract(hour from (now() at time zone 'America/Santiago'))::int;
+  dow      int  := extract(isodow from p_fecha)::int;
   esp      boolean;
+  feriado  boolean;
+  v_ap     date;
   v_fin    int;
-  v_socio  boolean;
-  v_precio int;
   v_lim    int;
-  v_dias   int;
   n        int;
   r        public.reservas;
 begin
   if auth.uid() is null then
     raise exception 'Debes iniciar sesión para reservar.';
   end if;
-
   select datos into cfg from public.config where id = 1;
-  select socio into v_socio from public.perfiles where id = auth.uid();
+  perform 1 from public.perfiles where id = auth.uid();
   if not found then
     raise exception 'Completa tu perfil antes de reservar.';
   end if;
-
   if p_cancha not in (1, 2) then
     raise exception 'Esa cancha no existe.';
   end if;
-
-  v_dias := coalesce((cfg ->> 'diasAnticipacion')::int, 7);
-  if p_fecha < hoy or p_fecha >= hoy + v_dias then
-    raise exception 'Solo puedes reservar con hasta % días de anticipación.', v_dias;
+  if p_fecha < hoy then
+    raise exception 'Esa fecha ya pasó.';
   end if;
   if p_fecha = hoy and p_hora <= hora_ya then
     raise exception 'Ese horario ya pasó.';
   end if;
 
   esp := public.dia_especial(p_fecha, cfg);
+  feriado := exists (select 1 from jsonb_array_elements(coalesce(cfg -> 'feriados', '[]'::jsonb)) f where f ->> 'fecha' = p_fecha::text);
   if coalesce((cfg ->> 'soloFinde')::boolean, false) and not esp then
     raise exception 'Por la app solo se reservan sábados, domingos y feriados.';
+  end if;
+
+  v_ap := least(
+    case when dow in (6, 7) then p_fecha - (dow - coalesce((cfg ->> 'abreFindeDia')::int, 4)) end,
+    case when feriado then p_fecha - coalesce((cfg ->> 'abreFeriadoDias')::int, 2) end
+  );
+  if v_ap is null then
+    v_ap := p_fecha - (coalesce((cfg ->> 'diasAnticipacion')::int, 7) - 1);
+  end if;
+  if hoy < v_ap then
+    raise exception 'Las reservas para el % se abren el %.', to_char(p_fecha, 'DD/MM'), to_char(v_ap, 'DD/MM');
   end if;
 
   select (b ->> 'fin')::int into v_fin
@@ -194,33 +203,23 @@ begin
     raise exception 'Ese horario no está disponible ese día.';
   end if;
 
-  v_lim := coalesce((cfg ->> 'limiteFinde')::int, 2);
-  if esp and v_lim > 0 then
-    select count(*) into n
-    from public.reservas
-    where user_id = auth.uid()
-      and estado = 'confirmada'
-      and public.dia_especial(fecha, cfg)
-      and date_trunc('week', fecha) = date_trunc('week', p_fecha);
+  v_lim := coalesce((cfg ->> 'limiteDiario')::int, 1);
+  if v_lim > 0 then
+    select count(*) into n from public.reservas
+    where user_id = auth.uid() and estado = 'confirmada' and fecha = p_fecha;
     if n >= v_lim then
-      raise exception 'Ya tienes % reservas en fin de semana o feriado esa semana, que es el máximo por persona. Anula una para pedir otra.', v_lim;
+      raise exception 'Ya tienes una cancha reservada ese día. Cada socio puede reservar % por día.',
+        case when v_lim = 1 then 'una cancha' else v_lim || ' canchas' end;
     end if;
   end if;
 
-  v_precio := case
-    when v_fin <= coalesce((cfg ->> 'mananaHasta')::int, 12) then 0
-    when esp then (case when v_socio then 0 else coalesce((cfg ->> 'precioFinde')::int, 16000) end)
-    else coalesce((cfg ->> 'precioSemana')::int, 16000)
-  end;
-
   begin
     insert into public.reservas (user_id, cancha, fecha, hora, fin, socio, precio)
-    values (auth.uid(), p_cancha, p_fecha, p_hora, v_fin, v_socio, v_precio)
+    values (auth.uid(), p_cancha, p_fecha, p_hora, v_fin, true, 0)
     returning * into r;
   exception when unique_violation then
     raise exception 'Ese horario se acaba de ocupar. Elige otro.';
   end;
-
   return r;
 end;
 $$;

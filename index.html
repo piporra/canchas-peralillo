@@ -31,7 +31,7 @@
         <div class="ico"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M5.6 5.6c3.5 3.5 3.5 9.3 0 12.8M18.4 5.6c-3.5 3.5-3.5 9.3 0 12.8"/></svg></div>
         <div><small>Deporte</small><strong>Tenis · arriendo de canchas</strong></div>
       </div>
-      <div class="promo"><b>Gratis</b><span>Reserva sábados, domingos y feriados (días marcados con <span style="color:var(--orange);font-weight:800">●</span>). Los socios juegan gratis todo el día y las mañanas son gratis para todos.</span></div>
+      <div class="promo"><b>Socios</b><span>Reserva tu cancha para sábados, domingos y feriados (días marcados con <span style="color:var(--orange);font-weight:800">●</span>). Sin costo para socios del club.</span></div>
 
       <div class="courts" id="courts"></div>
 
@@ -61,8 +61,7 @@
           <div id="signupFields" hidden style="display:flex;flex-direction:column;gap:10px">
             <label for="a-name">Nombre y apellido<input id="a-name" autocomplete="name" placeholder="Ej: Camila Rojas"></label>
             <label for="a-phone">Teléfono<input id="a-phone" type="tel" autocomplete="tel" placeholder="+56 9 1234 5678"></label>
-            <label style="flex-direction:row;align-items:center;gap:8px;font-weight:600"><input id="a-member" type="checkbox" style="width:18px;height:18px">Soy socio del club</label>
-          </div>
+                      </div>
           <label for="a-email">Correo<input id="a-email" type="email" autocomplete="email" placeholder="tu@correo.cl"></label>
           <label for="a-pass">Contraseña<input id="a-pass" type="password" autocomplete="current-password" placeholder="Mínimo 6 caracteres"></label>
           <p class="err" id="authErr" hidden></p>
@@ -80,8 +79,7 @@
         <form id="setupForm" novalidate>
           <label for="s-name">Nombre y apellido<input id="s-name" autocomplete="name"></label>
           <label for="s-phone">Teléfono<input id="s-phone" type="tel" autocomplete="tel"></label>
-          <label style="flex-direction:row;align-items:center;gap:8px;font-weight:600"><input id="s-member" type="checkbox" style="width:18px;height:18px">Soy socio del club</label>
-          <p class="err" id="setupErr" hidden></p>
+                    <p class="err" id="setupErr" hidden></p>
           <button class="cta">Guardar datos</button>
         </form>
       </div>
@@ -105,10 +103,9 @@
       <div class="card summary">
         <h3>Tu reserva</h3>
         <dl style="margin-top:12px" id="sumList"></dl>
-        <div class="total"><span>Total</span><b id="sumTotal"></b></div>
       </div>
       <p class="err" id="confirmErr" hidden></p>
-      <p class="note">Tu reserva queda confirmada al instante. Si corresponde pago, debes realizarlo en la Municipalidad, de lunes a viernes, antes de jugar.</p>
+      <p class="note">Tu reserva queda confirmada al instante. Si no puedes jugar, anúlala en <b>Reservas</b> para liberar la cancha.</p>
     </section>
 
     <!-- CONFIRMADA -->
@@ -120,7 +117,7 @@
         <span class="chip confirmada">Confirmada</span>
         <small style="color:var(--muted)">Código</small>
         <div class="code" id="doneCode"></div>
-        <p class="note">La verás en <b>Reservas</b>. Si tu reserva tiene costo, paga en la Municipalidad de lunes a viernes, antes de jugar.</p>
+        <p class="note">La verás en <b>Reservas</b>. Si no puedes jugar, anúlala para que otro socio use la cancha.</p>
       </div>
     </section>
 
@@ -137,7 +134,7 @@
         <button data-a="ok" aria-pressed="true">Reservas</button>
         <button data-a="anul" aria-pressed="false">Anuladas<span class="badge" id="anulBadge" hidden></span></button>
         <button data-a="fer" aria-pressed="false">Feriados</button>
-        <button data-a="tar" aria-pressed="false">Precios y horarios</button>
+        <button data-a="tar" aria-pressed="false">Horarios y reglas</button>
       </div>
       <div id="admBody" style="display:flex;flex-direction:column;gap:10px"></div>
     </section>
@@ -149,7 +146,6 @@
         <div><small style="color:var(--muted)">Nombre</small><div id="pName" style="font-weight:800"></div></div>
         <div><small style="color:var(--muted)">Teléfono</small><div id="pPhone" style="font-weight:800"></div></div>
         <div><small style="color:var(--muted)">Correo</small><div id="pEmail" style="font-weight:800;overflow-wrap:anywhere"></div></div>
-        <div><small style="color:var(--muted)">Tipo</small><div id="pType" style="font-weight:800"></div></div>
         <div style="display:flex;gap:8px;margin-top:4px"><button class="btn-line" id="editProfile">Editar datos</button><button class="btn-line" id="logout">Cerrar sesión</button></div>
       </div>
       <div class="card" id="pLogin" hidden>
@@ -161,10 +157,6 @@
         <span style="color:var(--muted)" id="pHours"></span>
         <strong style="margin-top:6px">Reservas</strong>
         <span style="color:var(--muted)" id="pRules"></span>
-        <strong style="margin-top:6px">Valores por bloque</strong>
-        <span style="color:var(--muted)" id="pRates"></span>
-        <strong style="margin-top:6px">Pago</strong>
-        <span style="color:var(--muted)">En la Municipalidad, de lunes a viernes, antes de jugar.</span>
       </div>
     </section>
   </main>
