@@ -57,6 +57,7 @@ create policy "config: admin edita" on public.config
   for update using (public.es_admin()) with check (public.es_admin());
 
 insert into public.config (id, datos) values (1, '{
+  "soloFinde": true,
   "precioSemana": 16000,
   "precioFinde": 16000,
   "mananaHasta": 12,
@@ -181,6 +182,9 @@ begin
   end if;
 
   esp := public.dia_especial(p_fecha, cfg);
+  if coalesce((cfg ->> 'soloFinde')::boolean, false) and not esp then
+    raise exception 'Por la app solo se reservan sábados, domingos y feriados.';
+  end if;
 
   select (b ->> 'fin')::int into v_fin
   from jsonb_array_elements(cfg -> (case when esp then 'jornadaFinde' else 'jornadaSemana' end)) b

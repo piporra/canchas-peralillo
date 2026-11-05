@@ -37,6 +37,9 @@ const MH=()=>st.club.mananaHasta??12;
 const DIAS=()=>st.club.diasAnticipacion??7;
 const LIM=()=>st.club.limiteFinde??2;
 function inWindow(k){const d=Math.round((parse(k)-today)/864e5);return d>=0&&d<DIAS()}
+const SOLO=()=>!!st.club.soloFinde;
+function bookable(k){return inWindow(k)&&(!SOLO()||especial(k))}
+function firstBookable(){for(let i=0;i<DIAS();i++){const d=new Date(today);d.setDate(today.getDate()+i);if(bookable(key(d)))return {k:key(d),i}}return null}
 function weekKey(k){const d=parse(k);d.setDate(d.getDate()-(d.getDay()+6)%7);return key(d)}
 function morningFree(k,h){return endOf(k,h)<=MH()}
 function priceFor(k,member,h){if(morningFree(k,h))return 0;if(especial(k))return member?0:(st.club.precioFinde??16000);return st.club.precioSemana??16000}
@@ -79,15 +82,17 @@ function renderDates(){
   const days=[];for(let i=0;i<5;i++){const d=new Date(today);d.setDate(today.getDate()+st.offset+i);days.push(d)}
   const m0=MONTHS[days[0].getMonth()],m1=MONTHS[days[4].getMonth()];
   $("month").textContent=m0===m1?m0:m0+" – "+m1;
-  $("strip").innerHTML=days.map(d=>{const k=key(d);return `<button class="day" data-d="${k}" ${inWindow(k)?"":'disabled title="Aún no se abre"'} aria-pressed="${k===st.date}"><b>${d.getDate()}</b><small>${DAYS[d.getDay()]}</small>${especial(k)?'<span class="free" title="Gratis para socios"></span>':'<span class="nofree"></span>'}</button>`}).join("");
+  $("strip").innerHTML=days.map(d=>{const k=key(d);return `<button class="day" data-d="${k}" ${bookable(k)?"":`disabled title="${inWindow(k)?"Solo sábados, domingos y feriados":"Aún no se abre"}"`} aria-pressed="${k===st.date}"><b>${d.getDate()}</b><small>${DAYS[d.getDay()]}</small>${especial(k)?'<span class="free" title="Gratis para socios"></span>':'<span class="nofree"></span>'}</button>`}).join("");
   $("prev").disabled=st.offset===0;$("next").disabled=st.offset+5>=DIAS();
   const hol=holidayName(st.date),tarde=`desde las ${hh(MH())}`;
-  $("dayInfo").innerHTML=`<b>Mañanas gratis para todos</b> hasta las ${hh(MH())}<br>`+(especial(st.date)
+  if(SOLO()&&!especial(st.date)){$("dayInfo").innerHTML=`<b>No hay días disponibles</b> en los próximos ${DIAS()} días.`}
+  else $("dayInfo").innerHTML=`<b>Mañanas gratis para todos</b> hasta las ${hh(MH())}<br>`+(especial(st.date)
     ?`<b>${esc(hol?"Feriado: "+hol:"Fin de semana")}</b> · ${tarde}: socios gratis · no socios ${clp(st.club.precioFinde??16000)}`
     :`<b>Día hábil</b> · ${tarde}: ${clp(st.club.precioSemana??16000)} para todos`);
-  $("winInfo").textContent=`Puedes reservar con hasta ${DIAS()} días de anticipación. De lunes a viernes puedes jugar todos los días${LIM()?`; sábados, domingos y feriados, máximo ${LIM()} ${LIM()===1?"reserva":"reservas"} por persona en la semana`:""}.`;
+  $("winInfo").textContent=SOLO()?`Por la app se reservan solo sábados, domingos y feriados, con hasta ${DIAS()} días de anticipación${LIM()?`. Máximo ${LIM()} ${LIM()===1?"reserva":"reservas"} por persona en la semana`:""}.`:`Puedes reservar con hasta ${DIAS()} días de anticipación. De lunes a viernes puedes jugar todos los días${LIM()?`; sábados, domingos y feriados, máximo ${LIM()} ${LIM()===1?"reserva":"reservas"} por persona en la semana`:""}.`;
 }
 function renderSlots(){
+  if(!bookable(st.date)){$("slots").innerHTML="";return}
   $("slots").innerHTML=blocksFor(st.date).map(([h,e])=>{const t=isTaken(st.date,st.court,h);
     return `<button class="slot" data-h="${h}" ${t?"disabled":""} aria-pressed="${st.hour===h}">${hh(h)} – ${hh(e)}<small>${t?"No disponible":morningFree(st.date,h)?"Disponible · gratis":"Disponible"}</small></button>`}).join("");
 }
@@ -117,9 +122,9 @@ function renderList(){
 function renderProfile(){
   const logged=!!st.uid;$("pCard").hidden=!logged;$("pLogin").hidden=logged;
   if(logged){$("pName").textContent=st.profile?.nombre||"—";$("pPhone").textContent=st.profile?.telefono||"—";$("pEmail").textContent=st.email;$("pType").textContent=st.profile?(st.profile.socio?"Socio":"No socio"):"—"}
-  $("pHours").innerHTML=`Lunes a viernes: ${fmtJ(jSem())}<br>Sábados, domingos y feriados: ${fmtJ(jFin())}`;
+  $("pHours").innerHTML=SOLO()?`Sábados, domingos y feriados: ${fmtJ(jFin())}`:`Lunes a viernes: ${fmtJ(jSem())}<br>Sábados, domingos y feriados: ${fmtJ(jFin())}`;
   $("pRules").textContent=`Hasta ${DIAS()} días de anticipación · días hábiles sin límite${LIM()?` · sábados, domingos y feriados: máximo ${LIM()} por persona en la semana`:""}.`;
-  $("pRates").textContent=`Mañanas (hasta las ${hh(MH())}): gratis para todos · Tardes de semana: ${clp(st.club.precioSemana??16000)} para todos · Tardes de fin de semana y feriados: socios gratis, no socios ${clp(st.club.precioFinde??16000)}`;
+  $("pRates").textContent=SOLO()?`Mañanas (hasta las ${hh(MH())}): gratis para todos · Tardes: socios gratis, no socios ${clp(st.club.precioFinde??16000)}`:`Mañanas (hasta las ${hh(MH())}): gratis para todos · Tardes de semana: ${clp(st.club.precioSemana??16000)} para todos · Tardes de fin de semana y feriados: socios gratis, no socios ${clp(st.club.precioFinde??16000)}`;
 }
 function admCard(r,mode){
   const p=r.perfiles||{};
@@ -143,7 +148,7 @@ function renderAdmin(){
       <div style="margin-top:8px">${fer.length?fer.map(f=>`<div class="hol"><span><b>${nice(f.fecha)}</b> ${parse(f.fecha).getFullYear()} · ${esc(f.nombre)}</span><button data-delfer="${f.fecha}">Quitar</button></div>`).join(""):'<p class="note">No hay feriados cargados.</p>'}</div></div>
       <div class="card"><form class="inline-form" id="ferForm"><input id="ferDate" type="date" aria-label="Fecha"><input id="ferName" placeholder="Nombre del feriado" aria-label="Nombre"><button>Agregar</button></form><p class="err" id="ferErr" hidden></p></div>`;
   }else{
-    if(!st.draft)st.draft={diasAnticipacion:DIAS(),limiteFinde:LIM(),precioSemana:st.club.precioSemana??16000,precioFinde:st.club.precioFinde??16000,mananaHasta:MH(),
+    if(!st.draft)st.draft={soloFinde:SOLO()?1:0,diasAnticipacion:DIAS(),limiteFinde:LIM(),precioSemana:st.club.precioSemana??16000,precioFinde:st.club.precioFinde??16000,mananaHasta:MH(),
       jornadaSemana:jSem().map(x=>[...x]),jornadaFinde:jFin().map(x=>[...x])};
     const d=st.draft;
     const hsel=(id,v,min,max)=>`<select data-k="${id}">${Array.from({length:max-min+1},(_,i)=>min+i).map(h=>`<option value="${h}" ${h===v?"selected":""}>${hh(h)}</option>`).join("")}</select>`;
@@ -159,6 +164,7 @@ function renderAdmin(){
       <div class="card"><div class="sec-title"><h4>Reglas de reserva</h4></div>
       <div style="display:flex;flex-direction:column;gap:10px;margin-top:8px">
       <label for="dAnt">Anticipación máxima<select id="dAnt" data-f="diasAnticipacion" class="selfull">${[2,3,5,7,10,14].map(n=>`<option value="${n}" ${n===d.diasAnticipacion?"selected":""}>${n} días</option>`).join("")}</select></label>
+      <label for="dSolo">Días que se reservan por la app<select id="dSolo" data-f="soloFinde" class="selfull"><option value="1" ${d.soloFinde?"selected":""}>Solo sábados, domingos y feriados</option><option value="0" ${d.soloFinde?"":"selected"}>Todos los días</option></select></label>
       <label for="dLim">Máximo de reservas por persona en sábados, domingos y feriados (por semana)<select id="dLim" data-f="limiteFinde" class="selfull">${[0,1,2,3,4].map(n=>`<option value="${n}" ${n===d.limiteFinde?"selected":""}>${n===0?"Sin límite":n}</option>`).join("")}</select></label>
       <p class="note">Los días hábiles no tienen límite. Las reservas anuladas o liberadas no cuentan.</p></div></div>
       ${jEditor("jornadaSemana","Jornada lunes a viernes",d.jornadaSemana)}
@@ -301,7 +307,7 @@ $("admBody").addEventListener("click",async e=>{
     const err=chk(d.jornadaSemana,"Lunes a viernes")||chk(d.jornadaFinde,"Fin de semana");
     if(err)return showErr("jErr",err);
     const ob=a=>[...a].sort((x,y)=>x[0]-y[0]).map(([ini,fin])=>({ini,fin}));
-    const ok=await saveClub({diasAnticipacion:d.diasAnticipacion,limiteFinde:d.limiteFinde,precioSemana:d.precioSemana,precioFinde:d.precioFinde,mananaHasta:d.mananaHasta,jornadaSemana:ob(d.jornadaSemana),jornadaFinde:ob(d.jornadaFinde)},"Cambios guardados");
+    const ok=await saveClub({soloFinde:!!d.soloFinde,diasAnticipacion:d.diasAnticipacion,limiteFinde:d.limiteFinde,precioSemana:d.precioSemana,precioFinde:d.precioFinde,mananaHasta:d.mananaHasta,jornadaSemana:ob(d.jornadaSemana),jornadaFinde:ob(d.jornadaFinde)},"Cambios guardados");
     if(ok){st.draft=null;renderAdmin()}
   }
 });
@@ -320,6 +326,7 @@ async function saveClub(patch,msg){
   go("book");
   if(!sb)return;
   await loadConfig();
+  {const f=firstBookable();if(f&&!bookable(st.date)){st.date=f.k;st.offset=Math.floor(f.i/5)*5}}
   sb.auth.onAuthStateChange((event,session)=>{
     setTimeout(async()=>{
       if(event==="PASSWORD_RECOVERY"){go("recover");return}
