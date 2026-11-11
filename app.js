@@ -22,7 +22,7 @@ const today=new Date();today.setHours(12,0,0,0);
 const st={court:1,offset:0,date:key(today),hour:null,view:"book",adm:"ok",authMode:"login",
   uid:null,email:"",isAdmin:false,profile:null,
   club:{feriados:[],soloFinde:true,abreFindeDia:4,abreFeriadoDias:2,limiteDiario:1,diasAnticipacion:7},
-  occupied:new Set(),who:new Map(),mine:[],adminRes:[],draft:null,afterLogin:null};
+  occupied:new Set(),who:new Map(),ladder:[],recent:[],socios:null,resTarget:null,mine:[],adminRes:[],draft:null,afterLogin:null};
 
 /* ---------- reglas del club ---------- */
 const toPairs=a=>(a||[]).map(x=>Array.isArray(x)?x:[x.ini,x.fin]);
@@ -51,6 +51,17 @@ function bookable(k){const t=key(today);return k>=t&&apertura(k)<=t&&(!SOLO()||e
 function firstBookable(){for(let i=0;i<HORIZONTE;i++){const k=addDays(key(today),i);if(bookable(k))return {k,i}}return null}
 function nextOpen(){let best=null;for(let i=0;i<14;i++){const k=addDays(key(today),i);if(SOLO()&&!especial(k))continue;const ap=apertura(k);if(ap>key(today)&&(!best||ap<best.ap))best={k,ap}}return best}
 function isTaken(k,c,h){if(k===key(today)&&h<=new Date().getHours())return true;return st.occupied.has(`${k}|${c}|${h}`)}
+function played(r){const t=key(today);return r.fecha<t||(r.fecha===t&&r.hora<=new Date().getHours())}
+function resultOf(id){return st.recent.find(m=>m.reserva_id===id)}
+function setsTxt(sets,flip){return (sets||[]).map(([a,b])=>flip?`${b}-${a}`:`${a}-${b}`).join(" · ")}
+function challengeInfo(){
+  const me=st.ladder.find(x=>x.id===st.uid);
+  if(!me)return "Entras a la escalerilla con tu primera reserva.";
+  if(me.pj<2)return `Te ${2-me.pj===1?"queda 1 partido":"quedan 2 partidos"} de libre elección: puedes desafiar a cualquier socio.`;
+  if(me.puesto===1)return "Estás en el puesto 1. Te pueden desafiar los 5 puestos de abajo.";
+  const t=st.ladder.filter(x=>x.puesto<me.puesto&&x.puesto>=me.puesto-5).map(x=>`${x.puesto}. ${x.nombre}`);
+  return `Puedes desafiar a: ${t.join(", ")}.`;
+}
 function myDayCount(k){return st.mine.filter(r=>r.estado==="confirmada"&&r.fecha===k).length}
 function fmtJ(a){return a.map(([x,y])=>`${x}–${y}`).join(", ")+" h"}
 
@@ -67,10 +78,13 @@ async function loadOccupied(){if(!sb)return;const end=new Date(today);end.setDat
   st.occupied=new Set((data||[]).map(r=>`${r.fecha}|${r.cancha}|${r.hora}`));
   st.who=new Map((data||[]).filter(r=>"nombre" in r).map(r=>[`${r.fecha}|${r.cancha}|${r.hora}`,{nombre:r.nombre,mio:r.es_mio}]))}
 async function loadMine(){st.mine=[];if(!sb||!st.uid)return;
-  const {data}=await sb.from("reservas").select("*").eq("user_id",st.uid).gte("fecha",key(today)).order("fecha").order("hora");st.mine=data||[]}
+  const {data}=await sb.from("reservas").select("*").eq("user_id",st.uid).gte("fecha",addDays(key(today),-45)).order("fecha").order("hora");st.mine=data||[]}
 async function loadAdmin(){st.adminRes=[];if(!sb||!st.isAdmin)return;
   const {data}=await sb.from("reservas").select("*, perfiles(nombre,telefono)").gte("fecha",key(today)).order("fecha").order("hora");st.adminRes=data||[]}
-async function refresh(){await Promise.all([loadOccupied(),loadMine(),loadAdmin()]);renderAll()}
+async function loadLadder(){st.ladder=[];st.recent=[];if(!sb||!st.uid)return;
+  const [l,rc]=await Promise.all([sb.rpc("ranking"),sb.rpc("partidos_recientes",{p_limite:200})]);
+  st.ladder=l.data||[];st.recent=rc.data||[]}
+async function refresh(){await Promise.all([loadOccupied(),loadMine(),loadAdmin(),loadLadder()]);renderAll()}
 
 async function onSession(session){
   st.uid=session?.user?.id||null;st.email=session?.user?.email||"";st.profile=null;st.isAdmin=false;
@@ -82,7 +96,7 @@ async function onSession(session){
   await refresh();
   if(st.uid&&!st.profile){openSetup(true);return}
   if(st.uid&&st.view==="auth"){const next=st.afterLogin;st.afterLogin=null;go(next||"book")}
-  if(!st.uid&&(st.view==="list"||st.view==="admin"))go("book");
+  if(!st.uid&&["list","admin","result"].includes(st.view))go("book");
 }
 
 /* ---------- render ---------- */
@@ -120,12 +134,68 @@ function renderSummary(){
 }
 function renderList(){
   if(!st.uid){$("list").innerHTML=`<div class="card empty">Ingresa con tu cuenta para ver tus reservas.<br><br><button class="cta" data-login="1">Ingresar</button></div>`;return}
-  const items=st.mine;
-  $("list").innerHTML=items.length?items.map(r=>{const d=parse(r.fecha);
-    return `<div class="card res"><div class="when"><b>${d.getDate()}</b><small>${MONTHS[d.getMonth()].slice(0,3)}</small></div>
-    <div class="info"><strong>${COURTS[r.cancha-1].name} · ${hh(r.hora)} – ${hh(r.fin)}</strong><small>${DAYS[d.getDay()]} · ${esc(r.id)}</small><div style="margin-top:4px"><span class="chip ${r.estado}">${LABEL[r.estado]}</span></div></div>
-    ${r.estado==="confirmada"?`<button data-cancel="${esc(r.id)}">Anular</button>`:""}</div>`}).join("")
-    :`<div class="card empty">Aún no tienes reservas.<br>Elige cancha y horario en <b>Reservar</b>.</div>`;
+  const card=(r,extra)=>{const d=parse(r.fecha);return `<div class="card"><div class="res"><div class="when"><b>${d.getDate()}</b><small>${MONTHS[d.getMonth()].slice(0,3)}</small></div>
+    <div class="info"><strong>${COURTS[r.cancha-1].name} · ${hh(r.hora)} – ${hh(r.fin)}</strong><small>${DAYS[d.getDay()]} · ${esc(r.id)}</small>${extra.chip?`<div style="margin-top:4px"><span class="chip ${r.estado}">${LABEL[r.estado]}</span></div>`:""}</div>
+    ${extra.side||""}</div>${extra.below||""}</div>`};
+  const next=st.mine.filter(r=>!played(r));
+  const past=st.mine.filter(r=>played(r)&&r.estado==="confirmada").sort((a,b)=>(b.fecha+p2(b.hora)).localeCompare(a.fecha+p2(a.hora)));
+  let html='<div class="subhead">Próximas</div>';
+  html+=next.length?next.map(r=>card(r,{chip:true,side:r.estado==="confirmada"?`<button data-cancel="${esc(r.id)}">Anular</button>`:""})).join("")
+    :`<div class="card empty">No tienes reservas próximas.<br>Elige cancha y horario en <b>Reservar</b>.</div>`;
+  if(past.length){
+    html+='<div class="subhead">Jugadas</div>';
+    html+=past.map(r=>{const m=resultOf(r.id);
+      if(!m)return card(r,{below:`<button class="btn-sm" data-result="${esc(r.id)}">Anotar resultado</button>`});
+      const won=m.ganador_id===st.uid;
+      return card(r,{below:`<div class="result"><span>vs <b>${esc(m.rival)}</b><br><span class="score">${setsTxt(m.sets)}</span></span><span style="display:flex;flex-direction:column;align-items:flex-end;gap:4px"><span class="pill ${won?"w":"l"}">${won?"Ganaste":"Perdiste"}</span><button class="link" data-result="${esc(r.id)}" style="font-size:12px">Editar</button></span></div>`})}).join("");
+  }
+  $("list").innerHTML=html;
+}
+function renderLadder(){
+  const el=$("ladder");
+  if(!st.uid){$("ladderNote").textContent="";el.innerHTML=`<div class="card empty">Ingresa con tu cuenta para ver la escalerilla.<br><br><button class="cta" data-login="1">Ingresar</button></div>`;return}
+  $("ladderNote").textContent="1 punto por partido ganado. Si le ganas a alguien de más arriba, tomas su puesto y los demás bajan uno. Del 1 al 8 clasifican a la Copa Oro y del 9 al 16 a la Copa Plata.";
+  const sg=d=>d>0?"+"+d:String(d);
+  const rows=st.ladder.map(x=>`<tr class="${x.puesto<=8?"oro":x.puesto<=16?"plata":""}${x.id===st.uid?" me":""}"><td><span class="pos">${x.puesto}</span></td><td>${esc(x.nombre)}${x.id===st.uid?" (tú)":""}</td><td>${x.pj}</td><td>${x.pg}</td><td>${x.pp}</td><td class="dif">${x.pj?sg(x.dif):"-"}</td></tr>`).join("");
+  const recent=st.recent.slice(0,10).map(m=>{const jw=m.ganador_id===m.jugador_id;const w=jw?m.jugador:m.rival,l=jw?m.rival:m.jugador;
+    return `<div class="match"><span><b>${esc(w)}</b> ganó a ${esc(l)}<em>${nice(m.fecha)} · ${COURTS[m.cancha-1].name}</em></span><span class="score">${setsTxt(m.sets,!jw)}</span>${st.isAdmin?`<button class="del" data-delres="${esc(m.reserva_id)}">Quitar</button>`:""}</div>`}).join("");
+  el.innerHTML=`<div class="card" style="font-size:13px"><b>Desafíos</b><br>${esc(challengeInfo())}</div>
+    <div class="card" style="padding:6px 8px">${st.ladder.length?`<table class="ladder"><thead><tr><th>#</th><th>Nombre</th><th>PJ</th><th>PG</th><th>PP</th><th>Dif</th></tr></thead><tbody>${rows}</tbody></table>`:'<p class="note" style="padding:10px">Aún no hay jugadores en la escalerilla. Entran con su primera reserva.</p>'}</div>
+    <p class="note"><span class="pos-key oro"></span>Copa Oro (1–8) · <span class="pos-key plata"></span>Copa Plata (9–16)</p>
+    <div class="subhead">Últimos partidos</div>
+    <div class="card" style="padding:4px 12px">${recent||'<p class="note" style="padding:8px 0">Todavía no hay resultados anotados.</p>'}</div>`;
+}
+async function openResult(id){
+  const r=st.mine.find(x=>x.id===id);if(!r)return;
+  st.resTarget=r;$("resErr").hidden=true;
+  if(!st.socios){const {data}=await sb.rpc("socios");st.socios=(data||[]).filter(s=>s.id!==st.uid)}
+  const m=resultOf(id);
+  $("resInfo").innerHTML=`<b>${nice(r.fecha)}</b> · ${COURTS[r.cancha-1].name} · ${hh(r.hora)} – ${hh(r.fin)}<div class="note" style="margin-top:6px">${esc(challengeInfo())}</div>`;
+  $("resRival").innerHTML=`<option value="">Elige un socio</option>`+st.socios.map(s=>`<option value="${s.id}" ${m&&m.rival_id===s.id?"selected":""}>${esc(s.nombre)}</option>`).join("");
+  const sets=m?m.sets:[];
+  [["s1a","s1b"],["s2a","s2b"],["s3a","s3b"]].forEach(([x,y],i)=>{$(x).value=sets[i]?sets[i][0]:"";$(y).value=sets[i]?sets[i][1]:""});
+  $("resDelete").hidden=!m;delete $("resDelete").dataset.armed;$("resDelete").textContent="Borrar este resultado";
+  go("result");renderVerdict();
+}
+function readSets(){
+  const v=id=>{const s=$(id).value.trim();return s===""?null:Number(s)};
+  const sets=[[v("s1a"),v("s1b")],[v("s2a"),v("s2b")],[v("s3a"),v("s3b")]].filter(s=>s[0]!==null||s[1]!==null);
+  if(!sets.length)return {err:"Anota el marcador de al menos un set."};
+  let a=0,c=0;
+  for(const [x,y] of sets){
+    if(x===null||y===null||!Number.isInteger(x)||!Number.isInteger(y)||x<0||y<0)return {err:"Completa los dos lados de cada set con números."};
+    if(x===y)return {err:"Un set no puede terminar empatado."};
+    x>y?a++:c++;
+  }
+  if(a===c)return {err:"Quedan empatados en sets. Anota el set que definió el partido."};
+  return {sets,win:a>c,a,c};
+}
+function renderVerdict(){
+  const sel=$("resRival"),name=sel.value?sel.options[sel.selectedIndex].text:"Rival";
+  $("resRivalName").textContent=name;
+  const r=readSets(),v=$("resVerdict");
+  if(r.err){v.className="verdict bad";v.innerHTML=`<b>Revisa el marcador</b>${esc(r.err)}`}
+  else{v.className="verdict";v.innerHTML=r.win?`<b>Ganaste ${r.a} sets a ${r.c}</b>Sumas 1 punto${sel.value?`. Si ${esc(name)} está más arriba en la escalerilla, tomas su puesto.`:"."}`:`<b>Perdiste ${r.a} sets a ${r.c}</b>${sel.value?`${esc(name)} suma 1 punto.`:"El rival suma 1 punto."}`}
 }
 function renderProfile(){
   const logged=!!st.uid;$("pCard").hidden=!logged;$("pLogin").hidden=logged;
@@ -182,14 +252,15 @@ function renderAll(){
   if(st.view==="book"){renderCourts();renderDates();renderSlots()}
   if(st.view==="confirm")renderSummary();
   if(st.view==="list")renderList();
+  if(st.view==="ladder")renderLadder();
   if(st.view==="admin"&&!(st.adm==="tar"&&st.draft))renderAdmin();
   if(st.view==="profile")renderProfile();
   renderCta();
 }
 function go(v){
   st.view=v;
-  for(const id of ["book","auth","setup","recover","confirm","done","list","admin","profile"])$("v-"+id).hidden=id!==v;
-  const tab=["list","profile","admin"].includes(v)?v:"book";
+  for(const id of ["book","auth","setup","recover","confirm","done","list","result","ladder","admin","profile"])$("v-"+id).hidden=id!==v;
+  const tab=v==="result"?"list":["list","ladder","profile","admin"].includes(v)?v:"book";
   document.querySelectorAll("#nav button").forEach(b=>{if(b.dataset.tab===tab)b.setAttribute("aria-current","page");else b.removeAttribute("aria-current")});
   renderAll();window.scrollTo(0,0);
 }
@@ -213,10 +284,33 @@ $("next").onclick=()=>{st.offset+=5;renderDates()};
 $("slots").onclick=e=>{const b=e.target.closest("[data-h]");if(!b||b.disabled)return;st.hour=+b.dataset.h;renderSlots();renderCta()};
 $("back").onclick=()=>go("book");
 document.querySelectorAll("#nav button").forEach(b=>b.onclick=()=>{
-  if((b.dataset.tab==="list")&&!st.uid){go("list");return}
+  if((b.dataset.tab==="list"||b.dataset.tab==="ladder")&&!st.uid){go(b.dataset.tab);return}
   go(b.dataset.tab);if(b.dataset.tab!=="book")refresh()});
+$("ladder").addEventListener("click",async e=>{
+  if(e.target.closest("[data-login]"))return openLogin("ladder");
+  const d=e.target.closest("[data-delres]");if(!d)return;
+  if(!d.dataset.armed){d.dataset.armed=1;d.textContent="¿Quitar?";d.style.color="var(--orange)";return}
+  const {error}=await sb.rpc("borrar_resultado",{p_reserva:d.dataset.delres});
+  if(error)return toast(errMsg(error));toast("Resultado quitado");refresh()});
+$("resBack").onclick=()=>go("list");
+$("resRival").onchange=renderVerdict;
+document.querySelectorAll("#v-result .sets input").forEach(i=>i.addEventListener("input",renderVerdict));
+$("resForm").onsubmit=async e=>{e.preventDefault();
+  const r=readSets();if(r.err)return showErr("resErr",r.err);
+  if(!$("resRival").value)return showErr("resErr","Elige al socio contra quien jugaste.");
+  $("resSave").disabled=true;
+  const {error}=await sb.rpc("registrar_resultado",{p_reserva:st.resTarget.id,p_rival:$("resRival").value,p_sets:r.sets});
+  $("resSave").disabled=false;
+  if(error)return showErr("resErr",errMsg(error));
+  toast("Resultado guardado");await refresh();go("list")};
+$("resDelete").onclick=async()=>{const b=$("resDelete");
+  if(!b.dataset.armed){b.dataset.armed=1;b.textContent="¿Seguro? Toca otra vez para borrar";return}
+  const {error}=await sb.rpc("borrar_resultado",{p_reserva:st.resTarget.id});
+  if(error)return showErr("resErr",errMsg(error));
+  toast("Resultado borrado");await refresh();go("list")};
 $("list").addEventListener("click",async e=>{
   if(e.target.closest("[data-login]"))return openLogin("list");
+  const rs=e.target.closest("[data-result]");if(rs)return openResult(rs.dataset.result);
   const b=e.target.closest("[data-cancel]");if(!b)return;
   if(!b.dataset.armed){b.dataset.armed=1;b.textContent="¿Seguro?";b.style.color="var(--orange)";b.style.borderColor="var(--orange)";return}
   b.disabled=true;const {error}=await sb.rpc("anular",{p_id:b.dataset.cancel});
