@@ -169,7 +169,7 @@ update public.config
 
 -- ---------------------------------------------------------------------
 -- Ranking por puestos (reglamento Escalerilla 2026):
--- cada socio entra al final con su primera reserva; si alguien de más
+-- cada socio entra al final cuando crea su cuenta; si alguien de más
 -- abajo le gana a alguien de más arriba, toma su puesto y los demás bajan uno.
 -- 1 punto por partido ganado, 0 por perdido.
 -- ---------------------------------------------------------------------
@@ -195,8 +195,8 @@ begin
   select coalesce((c.datos ->> 'puntosGanar')::int, 1), coalesce((c.datos ->> 'puntosPerder')::int, 0)
     into p_g, p_p from public.config c where c.id = 1;
   for ev in
-    select 0 as k, r.user_id as a, null::uuid as b, null::uuid as g, min(r.creado) as t
-    from public.reservas r group by r.user_id
+    select 0 as k, p.id as a, null::uuid as b, null::uuid as g, p.creado as t
+    from public.perfiles p
     union all
     select 1, m.jugador, m.rival, m.ganador,
            ((r.fecha + make_interval(hours => r.hora)) at time zone 'America/Santiago')

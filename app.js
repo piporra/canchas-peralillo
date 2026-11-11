@@ -56,7 +56,7 @@ function resultOf(id){return st.recent.find(m=>m.reserva_id===id)}
 function setsTxt(sets,flip){return (sets||[]).map(([a,b])=>flip?`${b}-${a}`:`${a}-${b}`).join(" · ")}
 function challengeInfo(){
   const me=st.ladder.find(x=>x.id===st.uid);
-  if(!me)return "Entras a la escalerilla con tu primera reserva.";
+  if(!me)return "Apareces en la escalerilla al crear tu cuenta.";
   if(me.pj<2)return `Te ${2-me.pj===1?"queda 1 partido":"quedan 2 partidos"} de libre elección: puedes desafiar a cualquier socio.`;
   if(me.puesto===1)return "Estás en el puesto 1. Te pueden desafiar los 5 puestos de abajo.";
   const t=st.ladder.filter(x=>x.puesto<me.puesto&&x.puesto>=me.puesto-5).map(x=>`${x.puesto}. ${x.nombre}`);
@@ -160,7 +160,7 @@ function renderLadder(){
   const recent=st.recent.slice(0,10).map(m=>{const jw=m.ganador_id===m.jugador_id;const w=jw?m.jugador:m.rival,l=jw?m.rival:m.jugador;
     return `<div class="match"><span><b>${esc(w)}</b> ganó a ${esc(l)}<em>${nice(m.fecha)} · ${COURTS[m.cancha-1].name}</em></span><span class="score">${setsTxt(m.sets,!jw)}</span>${st.isAdmin?`<button class="del" data-delres="${esc(m.reserva_id)}">Quitar</button>`:""}</div>`}).join("");
   el.innerHTML=`<div class="card" style="font-size:13px"><b>Desafíos</b><br>${esc(challengeInfo())}</div>
-    <div class="card" style="padding:6px 8px">${st.ladder.length?`<table class="ladder"><thead><tr><th>#</th><th>Nombre</th><th>PJ</th><th>PG</th><th>PP</th><th>Dif</th></tr></thead><tbody>${rows}</tbody></table>`:'<p class="note" style="padding:10px">Aún no hay jugadores en la escalerilla. Entran con su primera reserva.</p>'}</div>
+    <div class="card" style="padding:6px 8px">${st.ladder.length?`<table class="ladder"><thead><tr><th>#</th><th>Nombre</th><th>PJ</th><th>PG</th><th>PP</th><th>Dif</th></tr></thead><tbody>${rows}</tbody></table>`:'<p class="note" style="padding:10px">Aún no hay jugadores en la escalerilla. Entran al crear su cuenta.</p>'}</div>
     <p class="note"><span class="pos-key oro"></span>Copa Oro (1–8) · <span class="pos-key plata"></span>Copa Plata (9–16)</p>
     <div class="subhead">Últimos partidos</div>
     <div class="card" style="padding:4px 12px">${recent||'<p class="note" style="padding:8px 0">Todavía no hay resultados anotados.</p>'}</div>`;
