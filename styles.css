@@ -182,3 +182,8 @@ nav.bottom button{padding:4px 8px}
 .ladder tr.me td{font-weight:800}
 .pos-key{display:inline-block;width:10px;height:10px;border-radius:50%;margin:0 5px -1px 0}
 .pos-key.oro{background:var(--orange)}.pos-key.plata{background:#b9c2bd}
+.cuota{display:inline-block;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;padding:1px 6px;border-radius:999px;margin-top:2px}
+.cuota.ok{background:var(--green-soft);color:var(--ok)}
+.cuota.no{background:var(--taken);color:var(--muted)}
+.pay{flex:none;border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:999px;padding:7px 12px;font-weight:800;font-size:12px}
+.pay.on{background:var(--green);border-color:var(--green);color:#fff}

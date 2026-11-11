@@ -22,7 +22,7 @@ const today=new Date();today.setHours(12,0,0,0);
 const st={court:1,offset:0,date:key(today),hour:null,view:"book",adm:"ok",authMode:"login",
   uid:null,email:"",isAdmin:false,profile:null,
   club:{feriados:[],soloFinde:true,abreFindeDia:4,abreFeriadoDias:2,limiteDiario:1,diasAnticipacion:7},
-  occupied:new Set(),who:new Map(),ladder:[],recent:[],socios:null,resTarget:null,mine:[],adminRes:[],draft:null,afterLogin:null};
+  occupied:new Set(),who:new Map(),ladder:[],recent:[],alDia:new Set(),cuotas:[],cuotaMes:null,socios:null,resTarget:null,mine:[],adminRes:[],draft:null,afterLogin:null};
 
 /* ---------- reglas del club ---------- */
 const toPairs=a=>(a||[]).map(x=>Array.isArray(x)?x:[x.ini,x.fin]);
@@ -82,8 +82,12 @@ async function loadMine(){st.mine=[];if(!sb||!st.uid)return;
 async function loadAdmin(){st.adminRes=[];if(!sb||!st.isAdmin)return;
   const {data}=await sb.from("reservas").select("*, perfiles(nombre,telefono)").gte("fecha",addDays(key(today),-45)).order("fecha").order("hora");st.adminRes=data||[]}
 async function loadLadder(){st.ladder=[];st.recent=[];if(!sb||!st.uid)return;
-  const [l,rc]=await Promise.all([sb.rpc("ranking"),sb.rpc("partidos_recientes",{p_limite:200})]);
-  st.ladder=l.data||[];st.recent=rc.data||[]}
+  const [l,rc,ad]=await Promise.all([sb.rpc("ranking"),sb.rpc("partidos_recientes",{p_limite:200}),sb.rpc("al_dia")]);
+  st.ladder=l.data||[];st.recent=rc.data||[];st.alDia=new Set((ad.data||[]).map(x=>x.id))}
+function mesActual(){return key(today).slice(0,8)+"01"}
+function mesNombre(m){const d=parse(m);return `${MONTHS[d.getMonth()]} ${d.getFullYear()}`}
+async function loadCuotas(){if(!st.isAdmin)return;st.cuotaMes=st.cuotaMes||mesActual();
+  const {data,error}=await sb.rpc("cuotas_mes",{p_mes:st.cuotaMes});st.cuotas=error?[]:(data||[])}
 async function refresh(){await Promise.all([loadOccupied(),loadMine(),loadAdmin(),loadLadder()]);renderAll()}
 
 async function onSession(session){
@@ -154,9 +158,9 @@ function renderList(){
 function renderLadder(){
   const el=$("ladder");
   if(!st.uid){$("ladderNote").textContent="";el.innerHTML=`<div class="card empty">Ingresa con tu cuenta para ver la escalerilla.<br><br><button class="cta" data-login="1">Ingresar</button></div>`;return}
-  $("ladderNote").textContent="1 punto por partido ganado. Si le ganas a alguien de más arriba, tomas su puesto y los demás bajan uno. Del 1 al 8 clasifican a la Copa Oro y del 9 al 16 a la Copa Plata.";
+  $("ladderNote").textContent="1 punto por partido ganado. Si le ganas a alguien de más arriba, tomas su puesto y los demás bajan uno. Del 1 al 8 clasifican a la Copa Oro y del 9 al 16 a la Copa Plata. Solo participan socios con la cuota al día ($5.000 mensual).";
   const sg=d=>d>0?"+"+d:String(d);
-  const rows=st.ladder.map(x=>`<tr class="${x.puesto<=8?"oro":x.puesto<=16?"plata":""}${x.id===st.uid?" me":""}"><td><span class="pos">${x.puesto}</span></td><td>${esc(x.nombre)}${x.id===st.uid?" (tú)":""}</td><td>${x.pj}</td><td>${x.pg}</td><td>${x.pp}</td><td class="dif">${x.pj?sg(x.dif):"-"}</td></tr>`).join("");
+  const rows=st.ladder.map(x=>`<tr class="${x.puesto<=8?"oro":x.puesto<=16?"plata":""}${x.id===st.uid?" me":""}"><td><span class="pos">${x.puesto}</span></td><td>${esc(x.nombre)}${x.id===st.uid?" (tú)":""}<br>${st.alDia.has(x.id)?'<span class="cuota ok">Cuota al día</span>':'<span class="cuota no">Cuota pendiente</span>'}</td><td>${x.pj}</td><td>${x.pg}</td><td>${x.pp}</td><td class="dif">${x.pj?sg(x.dif):"-"}</td></tr>`).join("");
   const recent=st.recent.slice(0,10).map(m=>{const jw=m.ganador_id===m.jugador_id;const w=jw?m.jugador:m.rival,l=jw?m.rival:m.jugador;
     return `<div class="match"><span><b>${esc(w)}</b> ganó a ${esc(l)}<em>${nice(m.fecha)} · ${COURTS[m.cancha-1].name}</em></span><span class="score">${setsTxt(m.sets,!jw)}</span>${st.isAdmin?`<button class="del" data-delres="${esc(m.reserva_id)}">Quitar</button>`:""}</div>`}).join("");
   el.innerHTML=`<div class="card" style="font-size:13px"><b>Desafíos</b><br>${esc(challengeInfo())}</div>
@@ -203,7 +207,8 @@ function renderVerdict(){
 }
 function renderProfile(){
   const logged=!!st.uid;$("pCard").hidden=!logged;$("pLogin").hidden=logged;
-  if(logged){$("pName").textContent=st.profile?.nombre||"—";$("pPhone").textContent=st.profile?.telefono||"—";$("pEmail").textContent=st.email}
+  if(logged){const ok=st.alDia.has(st.uid);$("pCuota").innerHTML=`<span class="cuota ${ok?"ok":"no"}">${ok?"Al día":"Pendiente"}</span> <span style="color:var(--muted);font-weight:600">${MONTHS[today.getMonth()]} · $5.000 mensual</span>`;
+    $("pName").textContent=st.profile?.nombre||"—";$("pPhone").textContent=st.profile?.telefono||"—";$("pEmail").textContent=st.email}
   $("pHours").innerHTML=SOLO()?`Sábados, domingos y feriados: ${fmtJ(jFin())}`:`Lunes a viernes: ${fmtJ(jSem())}<br>Sábados, domingos y feriados: ${fmtJ(jFin())}`;
   $("pRules").textContent=`Fines de semana: se reservan desde el ${DIA_NOMBRE[ABRE_DIA()]} · Feriados: desde ${ABRE_FER()} ${ABRE_FER()===1?"día":"días"} antes${LIM_DIA()?` · Máximo ${LIM_DIA()===1?"una cancha":LIM_DIA()+" canchas"} por socio al día`:""} · Sin costo para socios.`;
 }
@@ -223,6 +228,15 @@ function renderAdmin(){
     const intro=st.adm==="anul"?'<p class="note">Reservas próximas que el jugador anuló o que el club liberó. Esas canchas ya están disponibles.</p>':"";
     body.innerHTML=intro+(list.length?list.map(r=>admCard(r,st.adm==="ok"?"release":"")).join("")
       :`<div class="card empty">${st.adm==="ok"?"No hay reservas próximas.":"No hay canchas anuladas ni liberadas."}</div>`);
+  }else if(st.adm==="cuo"){
+    const m=st.cuotaMes||mesActual(),n=st.cuotas.filter(x=>x.pagado).length;
+    body.innerHTML=`<div class="card" style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+        <button class="arrow" data-cmes="-1" aria-label="Mes anterior"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M15 6l-6 6 6 6"/></svg></button>
+        <div style="text-align:center"><b style="font-family:var(--display);font-size:20px;text-transform:uppercase;color:var(--green)">${mesNombre(m)}</b><div class="note">${n} de ${st.cuotas.length} socios al día · $5.000</div></div>
+        <button class="arrow" data-cmes="1" aria-label="Mes siguiente"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M9 6l6 6-6 6"/></svg></button></div>
+      <div class="card" style="padding:4px 12px">${st.cuotas.length?st.cuotas.map(x=>`<div class="match"><span><b>${esc(x.nombre)}</b><em>${x.pagado?`Pagó · registrado el ${fmtAt(x.pagado_el)}`:esc(x.telefono||"")}</em></span>
+        <button class="pay ${x.pagado?"on":""}" data-pay="${x.id}" data-v="${x.pagado?0:1}">${x.pagado?"Pagó ✓":"Marcar pago"}</button></div>`).join(""):'<p class="note" style="padding:8px 0">Cargando…</p>'}</div>
+      <p class="note">Toca «Marcar pago» cuando el socio pague la cuota del mes. Si te equivocas, toca de nuevo para quitarlo.</p>`;
   }else if(st.adm==="res"){
     const list=st.adminRes.filter(r=>r.estado==="confirmada"&&played(r)).sort((a,b)=>(b.fecha+p2(b.hora)).localeCompare(a.fecha+p2(a.hora)));
     const pend=list.filter(r=>!resultOf(r.id)).length;
@@ -396,12 +410,15 @@ $("logout").onclick=async()=>{await sb.auth.signOut();toast("Sesión cerrada");g
 $("goLogin").onclick=()=>openLogin("profile");
 
 /* ---------- eventos: administración ---------- */
-$("admTabs").onclick=e=>{const b=e.target.closest("[data-a]");if(!b)return;st.adm=b.dataset.a;st.draft=null;renderAdmin()};
+$("admTabs").onclick=async e=>{const b=e.target.closest("[data-a]");if(!b)return;st.adm=b.dataset.a;st.draft=null;renderAdmin();if(st.adm==="cuo"){await loadCuotas();renderAdmin()}};
 $("admBody").addEventListener("change",e=>{const d=st.draft;if(!d)return;const t=e.target;
   if(t.dataset.f){d[t.dataset.f]=Math.max(0,+t.value||0);if(t.dataset.f==="soloFinde")renderAdmin();return}
   if(t.dataset.k){const [n,i,j]=t.dataset.k.split(".");d[n][+i][+j]=+t.value}});
 $("admBody").addEventListener("click",async e=>{
   const t=e.target;
+  const cm=t.closest("[data-cmes]");if(cm){const d=parse(st.cuotaMes||mesActual());d.setMonth(d.getMonth()+Number(cm.dataset.cmes));st.cuotaMes=key(d).slice(0,8)+"01";st.cuotas=[];renderAdmin();await loadCuotas();return renderAdmin()}
+  const py=t.closest("[data-pay]");if(py){py.disabled=true;const {error}=await sb.rpc("marcar_cuota",{p_perfil:py.dataset.pay,p_mes:st.cuotaMes||mesActual(),p_pagado:py.dataset.v==="1"});
+    if(error){py.disabled=false;return toast(errMsg(error))}toast(py.dataset.v==="1"?"Pago registrado":"Pago quitado");await Promise.all([loadCuotas(),loadLadder()]);return renderAdmin()}
   const ar=t.closest("[data-admres]");if(ar){if(!st.recent.length)await loadLadder();return openResult(ar.dataset.admres,true)}
   const rel=t.closest("[data-rel]");
   if(rel){if(!rel.dataset.armed){rel.dataset.armed=1;rel.textContent="¿Liberar esta cancha? Toca para confirmar";rel.style.background="var(--orange)";rel.style.color="#fff";return}
