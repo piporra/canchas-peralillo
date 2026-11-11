@@ -134,11 +134,11 @@
       <div class="card" id="resInfo" style="font-size:13px"></div>
       <div class="card">
         <form id="resForm" novalidate>
-          <label for="resRival">¿Contra quién jugaste?<select id="resRival" class="selfull"></select></label>
+          <label for="resRival" id="resRivalLabel">¿Contra quién jugaste?<select id="resRival" class="selfull"></select></label>
           <div>
             <div style="font-size:13px;font-weight:700;margin-bottom:6px">Marcador</div>
             <div class="sets">
-              <span></span><span class="h">Tú</span><span class="h" id="resRivalName">Rival</span>
+              <span></span><span class="h" id="resOwnerName">Tú</span><span class="h" id="resRivalName">Rival</span>
               <span class="n">Set 1</span><input id="s1a" inputmode="numeric" maxlength="2" aria-label="Set 1, tus juegos"><input id="s1b" inputmode="numeric" maxlength="2" aria-label="Set 1, juegos del rival">
               <span class="n">Set 2</span><input id="s2a" inputmode="numeric" maxlength="2" aria-label="Set 2, tus juegos"><input id="s2b" inputmode="numeric" maxlength="2" aria-label="Set 2, juegos del rival">
               <span class="n">Set 3</span><input id="s3a" inputmode="numeric" maxlength="2" placeholder="–" aria-label="Set 3, tus juegos"><input id="s3b" inputmode="numeric" maxlength="2" placeholder="–" aria-label="Set 3, juegos del rival">
@@ -166,6 +166,7 @@
         <button data-a="ok" aria-pressed="true">Reservas</button>
         <button data-a="anul" aria-pressed="false">Anuladas<span class="badge" id="anulBadge" hidden></span></button>
         <button data-a="fer" aria-pressed="false">Feriados</button>
+        <button data-a="res" aria-pressed="false">Resultados</button>
         <button data-a="tar" aria-pressed="false">Horarios y reglas</button>
       </div>
       <div id="admBody" style="display:flex;flex-direction:column;gap:10px"></div>

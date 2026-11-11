@@ -29,7 +29,7 @@ as $$
   order by p.nombre;
 $$;
 
--- Anotar o corregir el resultado de una reserva propia ya jugada.
+-- Anotar o corregir el resultado de una reserva ya jugada (quien reservó o el administrador).
 create or replace function public.registrar_resultado(p_reserva text, p_rival uuid, p_sets jsonb)
 returns public.partidos
 language plpgsql security definer set search_path = public
@@ -49,8 +49,8 @@ begin
     raise exception 'Debes iniciar sesión.';
   end if;
   select * into res from public.reservas where id = p_reserva;
-  if not found or res.user_id <> auth.uid() then
-    raise exception 'Solo quien reservó puede anotar el resultado.';
+  if not found or (res.user_id <> auth.uid() and not public.es_admin()) then
+    raise exception 'Solo quien reservó o el administrador puede anotar el resultado.';
   end if;
   if res.estado <> 'confirmada' then
     raise exception 'Esa reserva fue anulada.';
@@ -58,8 +58,8 @@ begin
   if res.fecha > hoy or (res.fecha = hoy and res.hora > hora_ya) then
     raise exception 'Podrás anotar el resultado cuando empiece el partido.';
   end if;
-  if p_rival is null or p_rival = auth.uid() or not exists (select 1 from public.perfiles where id = p_rival) then
-    raise exception 'Elige al socio contra quien jugaste.';
+  if p_rival is null or p_rival = res.user_id or not exists (select 1 from public.perfiles where id = p_rival) then
+    raise exception 'Elige al socio contra quien se jugó.';
   end if;
   if jsonb_typeof(p_sets) <> 'array' or jsonb_array_length(p_sets) not between 1 and 3 then
     raise exception 'Anota entre 1 y 3 sets.';
@@ -82,7 +82,7 @@ begin
   end if;
 
   insert into public.partidos (reserva_id, jugador, rival, sets, ganador)
-  values (p_reserva, auth.uid(), p_rival, p_sets, case when ga > gb then auth.uid() else p_rival end)
+  values (p_reserva, res.user_id, p_rival, p_sets, case when ga > gb then res.user_id else p_rival end)
   on conflict (reserva_id) do update
      set rival = excluded.rival, sets = excluded.sets, ganador = excluded.ganador, creado = now()
   returning * into v_out;
