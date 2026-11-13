@@ -104,6 +104,7 @@
         <h3>Tu reserva</h3>
         <dl style="margin-top:12px" id="sumList"></dl>
       </div>
+      <div class="card" id="cfFields"></div>
       <p class="err" id="confirmErr" hidden></p>
       <p class="note">Tu reserva queda confirmada al instante. Si no puedes jugar, anúlala en <b>Reservas</b> para liberar la cancha.</p>
     </section>
@@ -150,6 +151,15 @@
           <button type="button" class="link" id="resDelete" hidden>Borrar este resultado</button>
         </form>
       </div>
+    </section>
+
+    <!-- EDITAR PARTIDO DE UNA RESERVA -->
+    <section class="view" id="v-edit" hidden>
+      <button class="back" id="editBack">‹ Volver</button>
+      <h3>Editar partido</h3>
+      <div class="card" id="editInfo" style="font-size:13px"></div>
+      <div class="card"><form id="editForm" novalidate><div id="editFields"></div>
+        <p class="err" id="editErr" hidden></p><button class="cta" id="editSave">Guardar cambios</button></form></div>
     </section>
 
     <!-- PARTIDO SIN RESERVA -->

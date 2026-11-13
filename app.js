@@ -75,9 +75,10 @@ if(!configured)$("cfgErr").hidden=false;
 async function loadConfig(){if(!sb)return;const {data}=await sb.from("config").select("datos").eq("id",1).maybeSingle();if(data&&data.datos)st.club={...st.club,...data.datos}}
 async function loadOccupied(){if(!sb)return;const end=new Date(today);end.setDate(end.getDate()+14);
   const args={desde:key(today),hasta:key(end)};
-  const {data,error}=st.uid?await sb.rpc("agenda",args):await sb.rpc("ocupados",args);if(error)return;
+  let {data,error}=st.uid?await sb.rpc("agenda_v2",args):await sb.rpc("ocupados",args);
+  if(error&&st.uid)({data,error}=await sb.rpc("agenda",args));if(error)return;
   st.occupied=new Set((data||[]).map(r=>`${r.fecha}|${r.cancha}|${r.hora}`));
-  st.who=new Map((data||[]).filter(r=>"nombre" in r).map(r=>[`${r.fecha}|${r.cancha}|${r.hora}`,{nombre:r.nombre,mio:r.es_mio}]))}
+  st.who=new Map((data||[]).filter(r=>"nombre" in r).map(r=>[`${r.fecha}|${r.cancha}|${r.hora}`,{nombre:r.nombre,mio:r.es_mio,rival:r.rival,esc:r.escalerilla}]))}
 async function loadMine(){st.mine=[];if(!sb||!st.uid)return;
   const {data}=await sb.from("reservas").select("*").eq("user_id",st.uid).gte("fecha",addDays(key(today),-45)).order("fecha").order("hora");st.mine=data||[]}
 async function loadAdmin(){st.adminRes=[];st.sinRes=[];if(!sb||!st.isAdmin)return;
@@ -91,7 +92,7 @@ function mesActual(){return key(today).slice(0,8)+"01"}
 function mesNombre(m){const d=parse(m);return `${MONTHS[d.getMonth()]} ${d.getFullYear()}`}
 async function loadCuotas(){if(!st.isAdmin)return;st.cuotaMes=st.cuotaMes||mesActual();
   const {data,error}=await sb.rpc("cuotas_mes",{p_mes:st.cuotaMes});st.cuotas=error?[]:(data||[])}
-async function refresh(){await Promise.all([loadOccupied(),loadMine(),loadAdmin(),loadLadder()]);renderAll()}
+async function refresh(){if(st.uid&&sb)await ensureSocios();await Promise.all([loadOccupied(),loadMine(),loadAdmin(),loadLadder()]);renderAll()}
 
 async function onSession(session){
   st.uid=session?.user?.id||null;st.email=session?.user?.email||"";st.profile=null;st.isAdmin=false;
@@ -125,7 +126,8 @@ function renderSlots(){
   if(!bookable(st.date)){$("slots").innerHTML="";return}
   $("slots").innerHTML=blocksFor(st.date).map(([h,e])=>{const t=isTaken(st.date,st.court,h);
     const w=st.who.get(`${st.date}|${st.court}|${h}`);
-    const lab=!t?"Disponible":w?(w.mio?"Tu reserva":`Reservada por ${esc(w.nombre)}`):st.occupied.has(`${st.date}|${st.court}|${h}`)?(st.uid?"Reservada":"Reservada · ingresa para ver por quién"):"No disponible";
+    const tag=w&&w.esc===true?" · Escalerilla":w&&w.esc===false?" · Amistoso":"";
+    const lab=!t?"Disponible":w?(w.mio?`Tu reserva${w.rival?" vs "+esc(w.rival):""}${tag}`:w.rival?`${esc(w.nombre)} vs ${esc(w.rival)}${tag}`:`Reservada por ${esc(w.nombre)}${tag}`):st.occupied.has(`${st.date}|${st.court}|${h}`)?(st.uid?"Reservada":"Reservada · ingresa para ver por quién"):"No disponible";
     return `<button class="slot${w?" who":""}${w&&w.mio?" mine":""}" data-h="${h}" ${t?"disabled":""} aria-pressed="${st.hour===h}">${hh(h)} – ${hh(e)}<small>${lab}</small></button>`}).join("");
 }
 function renderCta(){
@@ -136,22 +138,67 @@ function renderCta(){
   else if(st.view==="done"){bar.hidden=false;b.disabled=false;b.textContent="Hacer otra reserva";i.textContent=""}
   else bar.hidden=true;
 }
+function socioName(id){const s=(st.socios||[]).find(x=>x.id===id);return s?s.nombre:""}
+function rivalTxt(r){return r.rival_id?socioName(r.rival_id):r.rival_nombre||""}
+function tipoTxt(r){return r.escalerilla===true?"Escalerilla":r.escalerilla===false?"Amistoso":"Sin definir"}
+function matchFields(px,cur,ownerId){
+  const esc0=cur?cur.escalerilla:null,riv=cur?cur.rival_id:null,ext=cur&&!cur.rival_id?cur.rival_nombre:"";
+  const opts=(st.socios||[]).filter(s=>s.id!==ownerId).map(s=>`<option value="${s.id}" ${riv===s.id?"selected":""}>${esc(s.nombre)}</option>`).join("");
+  return `<div class="mf" data-px="${px}">
+    <div style="font-size:13px;font-weight:700;margin-bottom:6px">¿Es partido de la escalerilla? <span style="color:var(--orange)">*</span></div>
+    <div class="auth-tabs" id="${px}Tipo"><button type="button" data-tipo="1" aria-pressed="${esc0===true}">Sí, escalerilla</button><button type="button" data-tipo="0" aria-pressed="${esc0===false}">No, amistoso</button></div>
+    <label for="${px}Rival" style="margin-top:12px">¿Con quién juegas?<select id="${px}Rival" class="selfull">
+      <option value="">${"Elige un socio"}</option>${opts}
+      <option value="__ext" ${ext?"selected":""}>Jugador externo o sin cuenta…</option>
+      <option value="__none">Aún no sé</option></select></label>
+    <input id="${px}Ext" placeholder="Nombre del jugador" style="margin-top:8px;width:100%" value="${esc(ext||"")}" ${ext?"":"hidden"}>
+    <p class="note" id="${px}Hint" style="margin-top:6px"></p></div>`;
+}
+function mfSync(px){
+  const sel=$(px+"Rival"),ext=$(px+"Ext"),hint=$(px+"Hint"),tipo=document.querySelector(`#${px}Tipo [aria-pressed="true"]`);
+  ext.hidden=sel.value!=="__ext";
+  const isEsc=tipo?tipo.dataset.tipo==="1":null;
+  hint.textContent=isEsc===true?"Elige al socio de la lista. Si es socio pero aún no tiene cuenta, elige «Jugador externo o sin cuenta» y escribe su nombre.":
+    isEsc===false?"Los amistosos no cuentan para la escalerilla.":"";
+}
+function mfRead(px,booking){
+  const tipo=document.querySelector(`#${px}Tipo [aria-pressed="true"]`),v=$(px+"Rival").value,ext=$(px+"Ext").value.trim();
+  if(!tipo)return {err:"Indica si es partido de la escalerilla."};
+  const e=tipo.dataset.tipo==="1";
+  if(v==="__ext"&&ext.length<2)return {err:"Escribe el nombre del jugador."};
+  const rival=v&&!v.startsWith("__")?v:null,nombre=v==="__ext"?ext:null;
+  if(e&&!rival&&!nombre)return {err:"Para un partido de escalerilla indica con quién juegas."};
+  return {e,rival,nombre};
+}
+document.addEventListener("click",ev=>{const b=ev.target.closest(".mf [data-tipo]");if(!b)return;const box=b.closest(".mf");
+  box.querySelectorAll("[data-tipo]").forEach(x=>x.setAttribute("aria-pressed",x===b));mfSync(box.dataset.px)});
+document.addEventListener("change",ev=>{const s=ev.target.closest(".mf select");if(!s)return;const px=s.closest(".mf").dataset.px;mfSync(px)});
+async function ensureSocios(){if(!st.socios){const {data}=await sb.rpc("socios");st.socios=data||[]}}
+async function openEdit(id,admin){
+  await ensureSocios();
+  const r=(admin?st.adminRes:st.mine).find(x=>x.id===id);if(!r)return;
+  st.editTarget=r;st.editAdmin=!!admin;$("editErr").hidden=true;
+  $("editInfo").innerHTML=`<b>${nice(r.fecha)}</b> · ${COURTS[r.cancha-1].name} · ${hh(r.hora)} – ${hh(r.fin)}${admin?`<div class="note" style="margin-top:6px">Reservó <b>${esc((r.perfiles||{}).nombre||"")}</b>.</div>`:""}`;
+  $("editFields").innerHTML=matchFields("ed",r,r.user_id);mfSync("ed");go("edit");
+}
 function renderSummary(){
   $("sumList").innerHTML=`<dt>Cancha</dt><dd>${COURTS[st.court-1].name}</dd><dt>Fecha</dt><dd>${nice(st.date)}</dd><dt>Horario</dt><dd>${hh(st.hour)} – ${hh(endOf(st.date,st.hour))}</dd><dt>A nombre de</dt><dd>${esc(st.profile?.nombre)}</dd><dt>Costo</dt><dd>Sin costo para socios</dd>`;
+  if(!$("cfFields").dataset.ready){$("cfFields").innerHTML=matchFields("cf",null,st.uid);$("cfFields").dataset.ready=1;mfSync("cf")}
 }
 function renderList(){
   if(!st.uid){$("list").innerHTML=`<div class="card empty">Ingresa con tu cuenta para ver tus reservas.<br><br><button class="cta" data-login="1">Ingresar</button></div>`;return}
   const card=(r,extra)=>{const d=parse(r.fecha);return `<div class="card"><div class="res"><div class="when"><b>${d.getDate()}</b><small>${MONTHS[d.getMonth()].slice(0,3)}</small></div>
-    <div class="info"><strong>${COURTS[r.cancha-1].name} · ${hh(r.hora)} – ${hh(r.fin)}</strong><small>${DAYS[d.getDay()]} · ${esc(r.id)}</small>${extra.chip?`<div style="margin-top:4px"><span class="chip ${r.estado}">${LABEL[r.estado]}</span></div>`:""}</div>
+    <div class="info"><strong>${COURTS[r.cancha-1].name} · ${hh(r.hora)} – ${hh(r.fin)}</strong><small>${DAYS[d.getDay()]} · ${esc(r.id)}</small><small style="display:block">${rivalTxt(r)?"vs "+esc(rivalTxt(r))+" · ":""}${tipoTxt(r)}</small>${extra.chip?`<div style="margin-top:4px"><span class="chip ${r.estado}">${LABEL[r.estado]}</span></div>`:""}</div>
     ${extra.side||""}</div>${extra.below||""}</div>`};
   const next=st.mine.filter(r=>!played(r));
   const past=st.mine.filter(r=>played(r)&&r.estado==="confirmada").sort((a,b)=>(b.fecha+p2(b.hora)).localeCompare(a.fecha+p2(a.hora)));
   let html='<div class="subhead">Próximas</div>';
-  html+=next.length?next.map(r=>card(r,{chip:true,side:r.estado==="confirmada"?`<button data-cancel="${esc(r.id)}">Anular</button>`:""})).join("")
+  html+=next.length?next.map(r=>card(r,{chip:true,side:r.estado==="confirmada"?`<button data-cancel="${esc(r.id)}">Anular</button>`:"",below:r.estado==="confirmada"?`<button class="link" data-edit="${esc(r.id)}" style="font-size:13px;margin-top:8px">Editar rival o tipo de partido</button>`:""})).join("")
     :`<div class="card empty">No tienes reservas próximas.<br>Elige cancha y horario en <b>Reservar</b>.</div>`;
   if(past.length){
     html+='<div class="subhead">Jugadas</div>';
     html+=past.map(r=>{const m=resultOf(r.id);
+      if(r.escalerilla===false)return card(r,{below:`<div class="result"><span>Amistoso: no cuenta para la escalerilla</span><button class="link" data-edit="${esc(r.id)}" style="font-size:12px">Cambiar</button></div>`});
       if(!m)return card(r,{below:`<button class="btn-sm" data-result="${esc(r.id)}">Anotar resultado</button>`});
       const won=m.ganador_id===st.uid;
       return card(r,{below:`<div class="result"><span>vs <b>${esc(m.rival)}</b><br><span class="score">${setsTxt(m.sets)}</span></span><span style="display:flex;flex-direction:column;align-items:flex-end;gap:4px"><span class="pill ${won?"w":"l"}">${won?"Ganaste":"Perdiste"}</span><button class="link" data-result="${esc(r.id)}" style="font-size:12px">Editar</button></span></div>`})}).join("");
@@ -186,7 +233,7 @@ async function openResult(id,admin){
   $("resBack").textContent=admin?"‹ Volver a resultados":"‹ Volver a mis reservas";
   $("resInfo").innerHTML=`<b>${nice(r.fecha)}</b> · ${COURTS[r.cancha-1].name} · ${hh(r.hora)} – ${hh(r.fin)}`+(admin?`<div class="note" style="margin-top:6px">Reservó <b>${esc(owner)}</b>. Anota el marcador desde su lado.</div>`:`<div class="note" style="margin-top:6px">${esc(challengeInfo())}</div>`);
   $("resRivalLabel").firstChild.textContent=admin?`¿Contra quién jugó ${owner}?`:"¿Contra quién jugaste?";
-  $("resRival").innerHTML=`<option value="">Elige un socio</option>`+st.socios.filter(s=>s.id!==r.user_id).map(s=>`<option value="${s.id}" ${m&&m.rival_id===s.id?"selected":""}>${esc(s.nombre)}</option>`).join("");
+  $("resRival").innerHTML=`<option value="">Elige un socio</option>`+st.socios.filter(s=>s.id!==r.user_id).map(s=>`<option value="${s.id}" ${(m?m.rival_id:r.rival_id)===s.id?"selected":""}>${esc(s.nombre)}</option>`).join("");
   const sets=m?m.sets:[];
   [["s1a","s1b"],["s2a","s2b"],["s3a","s3b"]].forEach(([x,y],i)=>{$(x).value=sets[i]?sets[i][0]:"";$(y).value=sets[i]?sets[i][1]:""});
   $("resDelete").hidden=!m;delete $("resDelete").dataset.armed;$("resDelete").textContent="Borrar este resultado";
@@ -244,9 +291,9 @@ function renderProfile(){
 function admCard(r,mode){
   const p=r.perfiles||{};
   return `<div class="card adm-item"><div class="row"><div><strong>${COURTS[r.cancha-1].name} · ${nice(r.fecha)}</strong><div>${hh(r.hora)} – ${hh(r.fin)}</div></div><span class="chip ${r.estado}">${LABEL[r.estado]}</span></div>
-  <div class="who">${esc(p.nombre||"Sin nombre")}${p.telefono?" · "+esc(p.telefono):""} · ${esc(r.id)}</div>
+  <div class="who">${esc(p.nombre||"Sin nombre")}${rivalTxt(r)?" vs "+esc(rivalTxt(r)):""} · ${tipoTxt(r)}${p.telefono?" · "+esc(p.telefono):""} · ${esc(r.id)}</div>
   ${r.estado!=="confirmada"?`<div class="who">${r.estado==="anulada"?"Anulada":"Liberada"} el ${fmtAt(r.cambio_estado)} · la cancha quedó libre</div>`:""}
-  ${mode==="release"?`<div class="adm-actions"><button class="btn-no" data-rel="${esc(r.id)}">Liberar cancha</button></div>`:""}</div>`;
+  ${mode==="release"?`<div class="adm-actions"><button class="btn-no" data-admedit="${esc(r.id)}" style="background:var(--green-soft);color:var(--green)">Editar partido</button><button class="btn-no" data-rel="${esc(r.id)}">Liberar cancha</button></div>`:""}</div>`;
 }
 function renderAdmin(){
   document.querySelectorAll("#admTabs button").forEach(b=>b.setAttribute("aria-pressed",b.dataset.a===st.adm));
@@ -267,7 +314,7 @@ function renderAdmin(){
         <button class="pay ${x.pagado?"on":""}" data-pay="${x.id}" data-v="${x.pagado?0:1}">${x.pagado?"Pagó ✓":"Marcar pago"}</button></div>`).join(""):'<p class="note" style="padding:8px 0">Cargando…</p>'}</div>
       <p class="note">Toca «Marcar pago» cuando el socio pague la cuota del mes. Si te equivocas, toca de nuevo para quitarlo.</p>`;
   }else if(st.adm==="res"){
-    const list=st.adminRes.filter(r=>r.estado==="confirmada"&&played(r)).sort((a,b)=>(b.fecha+p2(b.hora)).localeCompare(a.fecha+p2(a.hora)));
+    const list=st.adminRes.filter(r=>r.estado==="confirmada"&&r.escalerilla!==false&&played(r)).sort((a,b)=>(b.fecha+p2(b.hora)).localeCompare(a.fecha+p2(a.hora)));
     const pend=list.filter(r=>!resultOf(r.id)).length;
     const free=st.sinRes.map(m=>{const done=!!m.ganador_id,jw=m.ganador_id===m.jugador_id;
       return `<div class="card adm-item"><div class="row"><div><strong>${esc(m.jugador)} vs ${esc(m.rival)}</strong><div>${nice(m.fecha)} · ${hh(m.hora)} · ${COURTS[m.cancha-1].name}</div></div>${done?'<span class="pill w">Anotado</span>':'<span class="chip pendiente">Sin resultado</span>'}</div>
@@ -323,8 +370,8 @@ function renderAll(){
 }
 function go(v){
   st.view=v;
-  for(const id of ["book","auth","setup","recover","confirm","done","list","result","match","ladder","admin","profile"])$("v-"+id).hidden=id!==v;
-  const tab=v==="match"?"admin":v==="result"?(st.resAdmin?"admin":"list"):["list","ladder","profile","admin"].includes(v)?v:"book";
+  for(const id of ["book","auth","setup","recover","confirm","done","list","result","edit","match","ladder","admin","profile"])$("v-"+id).hidden=id!==v;
+  const tab=v==="edit"?(st.editAdmin?"admin":"list"):v==="match"?"admin":v==="result"?(st.resAdmin?"admin":"list"):["list","ladder","profile","admin"].includes(v)?v:"book";
   document.querySelectorAll("#nav button").forEach(b=>{if(b.dataset.tab===tab)b.setAttribute("aria-current","page");else b.removeAttribute("aria-current")});
   renderAll();window.scrollTo(0,0);
 }
@@ -374,6 +421,13 @@ $("resDelete").onclick=async()=>{const b=$("resDelete");
   const {error}=st.resFree?await sb.rpc("borrar_partido",{p_id:st.resFree.id}):await sb.rpc("borrar_resultado",{p_reserva:st.resTarget.id});
   if(error)return showErr("resErr",errMsg(error));
   resDone(st.resFree?"Partido borrado":"Resultado borrado")};
+$("editBack").onclick=()=>{if(st.editAdmin){st.adm="ok";go("admin")}else go("list")};
+$("editForm").onsubmit=async e=>{e.preventDefault();
+  const mf=mfRead("ed",false);if(mf.err)return showErr("editErr",mf.err);
+  $("editSave").disabled=true;
+  const {error}=await sb.rpc("editar_partido_reserva",{p_reserva:st.editTarget.id,p_escalerilla:mf.e,p_rival:mf.rival,p_rival_nombre:mf.nombre});
+  $("editSave").disabled=false;if(error)return showErr("editErr",errMsg(error));
+  toast("Partido actualizado");await refresh();if(st.editAdmin){st.adm="ok";go("admin")}else go("list")};
 $("nmBack").onclick=()=>{st.adm="res";go("admin")};
 $("nmForm").onsubmit=async e=>{e.preventDefault();
   const a=$("nmA").value,b=$("nmB").value,f=$("nmDate").value,h=+$("nmHour").value,c=+$("nmCourt").value;
@@ -388,6 +442,7 @@ $("nmForm").onsubmit=async e=>{e.preventDefault();
 $("list").addEventListener("click",async e=>{
   if(e.target.closest("[data-login]"))return openLogin("list");
   const rs=e.target.closest("[data-result]");if(rs)return openResult(rs.dataset.result,false);
+  const ed=e.target.closest("[data-edit]");if(ed)return openEdit(ed.dataset.edit,false);
   const b=e.target.closest("[data-cancel]");if(!b)return;
   if(!b.dataset.armed){b.dataset.armed=1;b.textContent="¿Seguro?";b.style.color="var(--orange)";b.style.borderColor="var(--orange)";return}
   b.disabled=true;const {error}=await sb.rpc("anular",{p_id:b.dataset.cancel});
@@ -399,14 +454,15 @@ $("cta").onclick=async()=>{
   if(st.view==="book"&&st.hour!==null){
     if(!st.uid)return openLogin("confirm");
     if(!st.profile)return openSetup(true);
-    $("confirmErr").hidden=true;return go("confirm");
+    $("confirmErr").hidden=true;await ensureSocios();delete $("cfFields").dataset.ready;return go("confirm");
   }
   if(st.view==="done"){st.hour=null;return go("book")}
   if(st.view!=="confirm"||busy)return;
   if(isTaken(st.date,st.court,st.hour))return showErr("confirmErr","Ese horario se acaba de ocupar. Vuelve y elige otro.");
   if(LIM_DIA()&&myDayCount(st.date)>=LIM_DIA())return showErr("confirmErr",LIM_DIA()===1?"Ya tienes una cancha reservada ese día. Cada socio puede reservar una cancha por día.":`Ya tienes ${LIM_DIA()} canchas reservadas ese día, que es el máximo por socio.`);
+  const mf=mfRead("cf",true);if(mf.err)return showErr("confirmErr",mf.err);
   busy=true;$("cta").disabled=true;
-  const {data,error}=await sb.rpc("reservar",{p_cancha:st.court,p_fecha:st.date,p_hora:st.hour});
+  const {data,error}=await sb.rpc("reservar",{p_cancha:st.court,p_fecha:st.date,p_hora:st.hour,p_escalerilla:mf.e,p_rival:mf.rival,p_rival_nombre:mf.nombre});
   busy=false;
   if(error){showErr("confirmErr",errMsg(error));renderCta();loadOccupied().then(()=>{});return}
   const r=Array.isArray(data)?data[0]:data;
@@ -469,6 +525,7 @@ $("admBody").addEventListener("click",async e=>{
   const py=t.closest("[data-pay]");if(py){py.disabled=true;const {error}=await sb.rpc("marcar_cuota",{p_perfil:py.dataset.pay,p_mes:st.cuotaMes||mesActual(),p_pagado:py.dataset.v==="1"});
     if(error){py.disabled=false;return toast(errMsg(error))}toast(py.dataset.v==="1"?"Pago registrado":"Pago quitado");await Promise.all([loadCuotas(),loadLadder()]);return renderAdmin()}
   if(t.closest("#newMatch"))return openNewMatch();
+  const ae=t.closest("[data-admedit]");if(ae)return openEdit(ae.dataset.admedit,true);
   const fr=t.closest("[data-free]");if(fr)return openFree(fr.dataset.free);
   const ar=t.closest("[data-admres]");if(ar){if(!st.recent.length)await loadLadder();return openResult(ar.dataset.admres,true)}
   const rel=t.closest("[data-rel]");
