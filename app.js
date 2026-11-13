@@ -54,12 +54,13 @@ function isTaken(k,c,h){if(k===key(today)&&h<=new Date().getHours())return true;
 function played(r){const t=key(today);return r.fecha<t||(r.fecha===t&&r.hora<=new Date().getHours())}
 function resultOf(id){return st.recent.find(m=>m.reserva_id===id)}
 function setsTxt(sets,flip){return (sets||[]).map(([a,b])=>flip?`${b}-${a}`:`${a}-${b}`).join(" · ")}
+const placed=()=>st.ladder.filter(x=>x.clasificado!==false);
 function challengeInfo(){
   const me=st.ladder.find(x=>x.id===st.uid);
   if(!me)return "Apareces en la escalerilla al crear tu cuenta.";
-  if(me.pj<2)return `Te ${2-me.pj===1?"queda 1 partido":"quedan 2 partidos"} de libre elección: puedes desafiar a cualquier socio.`;
+  if(me.clasificado===false||me.pj<2)return `Te ${2-me.pj===1?"queda 1 partido":"quedan 2 partidos"} de libre elección: puedes desafiar a cualquier socio.`;
   if(me.puesto===1)return "Estás en el puesto 1. Te pueden desafiar los 5 puestos de abajo.";
-  const t=st.ladder.filter(x=>x.puesto<me.puesto&&x.puesto>=me.puesto-5).map(x=>`${x.puesto}. ${x.nombre}`);
+  const t=placed().filter(x=>x.puesto<me.puesto&&x.puesto>=me.puesto-5).map(x=>`${x.puesto}. ${x.nombre}`);
   return `Puedes desafiar a: ${t.join(", ")}.`;
 }
 function myDayCount(k){return st.mine.filter(r=>r.estado==="confirmada"&&r.fecha===k).length}
@@ -83,7 +84,8 @@ async function loadAdmin(){st.adminRes=[];st.sinRes=[];if(!sb||!st.isAdmin)retur
   sb.rpc("partidos_sin_reserva").then(({data})=>{st.sinRes=data||[];if(st.view==="admin"&&st.adm==="res")renderAdmin()});
   const {data}=await sb.from("reservas").select("*, perfiles(nombre,telefono)").gte("fecha",addDays(key(today),-45)).order("fecha").order("hora");st.adminRes=data||[]}
 async function loadLadder(){st.ladder=[];st.recent=[];if(!sb||!st.uid)return;
-  const [l,rc,ad]=await Promise.all([sb.rpc("ranking"),sb.rpc("partidos_recientes",{p_limite:200}),sb.rpc("al_dia")]);
+  let [l,rc,ad]=await Promise.all([sb.rpc("ranking_v2"),sb.rpc("partidos_recientes",{p_limite:200}),sb.rpc("al_dia")]);
+  if(l.error)l=await sb.rpc("ranking");  // si la base aún no tiene la regla nueva
   st.ladder=l.data||[];st.recent=rc.data||[];st.alDia=new Set((ad.data||[]).map(x=>x.id))}
 function mesActual(){return key(today).slice(0,8)+"01"}
 function mesNombre(m){const d=parse(m);return `${MONTHS[d.getMonth()]} ${d.getFullYear()}`}
@@ -159,14 +161,19 @@ function renderList(){
 function renderLadder(){
   const el=$("ladder");
   if(!st.uid){$("ladderNote").textContent="";el.innerHTML=`<div class="card empty">Ingresa con tu cuenta para ver la escalerilla.<br><br><button class="cta" data-login="1">Ingresar</button></div>`;return}
-  $("ladderNote").textContent="1 punto por partido ganado. Si le ganas a alguien de más arriba, tomas su puesto y los demás bajan uno. Del 1 al 8 clasifican a la Copa Oro y del 9 al 16 a la Copa Plata.";
+  $("ladderNote").textContent="1 punto por partido ganado. Tus 2 primeros partidos son de clasificación: al completarlos entras a la escalerilla según tus puntos. Desde el 3.º, si le ganas a alguien de más arriba, tomas su puesto y los demás bajan uno. Del 1 al 8 clasifican a la Copa Oro y del 9 al 16 a la Copa Plata.";
   const sg=d=>d>0?"+"+d:String(d);
-  const rows=st.ladder.map(x=>`<tr class="${x.puesto<=8?"oro":x.puesto<=16?"plata":""}${x.id===st.uid?" me":""}"><td><span class="pos">${x.puesto}</span></td><td>${esc(x.nombre)}${x.id===st.uid?" (tú)":""}<br>${st.alDia.has(x.id)?'<span class="cuota ok">Cuota al día</span>':st.isAdmin?'<span class="cuota no">Cuota pendiente</span>':""}</td><td>${x.pj}</td><td>${x.pg}</td><td>${x.pp}</td><td class="dif">${x.pj?sg(x.dif):"-"}</td></tr>`).join("");
+  const row=(x,n,zone)=>`<tr class="${zone?(n<=8?"oro":n<=16?"plata":""):""}${x.id===st.uid?" me":""}"><td><span class="pos">${n}</span></td><td>${esc(x.nombre)}${x.id===st.uid?" (tú)":""}<br>${st.alDia.has(x.id)?'<span class="cuota ok">Cuota al día</span>':st.isAdmin?'<span class="cuota no">Cuota pendiente</span>':""}</td><td>${x.pj}</td><td>${x.pg}</td><td>${x.pp}</td><td class="dif">${x.pj?sg(x.dif):"-"}</td></tr>`;
+  const head='<thead><tr><th>#</th><th>Nombre</th><th>PJ</th><th>PG</th><th>PP</th><th>Dif</th></tr></thead>';
+  const P=placed(),Q=st.ladder.filter(x=>x.clasificado===false);
   const recent=st.recent.slice(0,10).map(m=>{const jw=m.ganador_id===m.jugador_id;const w=jw?m.jugador:m.rival,l=jw?m.rival:m.jugador;
     return `<div class="match"><span><b>${esc(w)}</b> ganó a ${esc(l)}<em>${nice(m.fecha)} · ${COURTS[m.cancha-1].name}</em></span><span class="score">${setsTxt(m.sets,!jw)}</span>${st.isAdmin&&m.reserva_id?`<button class="del" data-delres="${esc(m.reserva_id)}">Quitar</button>`:""}</div>`}).join("");
   el.innerHTML=`<div class="card" style="font-size:13px"><b>Desafíos</b><br>${esc(challengeInfo())}</div>
-    <div class="card" style="padding:6px 8px">${st.ladder.length?`<table class="ladder"><thead><tr><th>#</th><th>Nombre</th><th>PJ</th><th>PG</th><th>PP</th><th>Dif</th></tr></thead><tbody>${rows}</tbody></table>`:'<p class="note" style="padding:10px">Aún no hay jugadores en la escalerilla. Entran al crear su cuenta.</p>'}</div>
-    <p class="note"><span class="pos-key oro"></span>Copa Oro (1–8) · <span class="pos-key plata"></span>Copa Plata (9–16)</p>
+    <div class="subhead">Escalerilla</div>
+    <div class="card" style="padding:6px 8px">${P.length?`<table class="ladder">${head}<tbody>${P.map((x,i)=>row(x,i+1,true)).join("")}</tbody></table>`:'<p class="note" style="padding:10px">Todavía nadie completa sus 2 partidos de clasificación. El primero en hacerlo abre la escalerilla.</p>'}</div>
+    ${P.length?'<p class="note"><span class="pos-key oro"></span>Copa Oro (1–8) · <span class="pos-key plata"></span>Copa Plata (9–16)</p>':""}
+    ${Q.length?`<div class="subhead">En clasificación</div><p class="note" style="margin-top:-4px">Aún no completan sus 2 primeros partidos. Se ordenan por puntos.</p>
+    <div class="card" style="padding:6px 8px"><table class="ladder">${head}<tbody>${Q.map((x,i)=>row(x,i+1,false)).join("")}</tbody></table></div>`:""}
     <div class="subhead">Últimos partidos</div>
     <div class="card" style="padding:4px 12px">${recent||'<p class="note" style="padding:8px 0">Todavía no hay resultados anotados.</p>'}</div>`;
 }
