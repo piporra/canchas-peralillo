@@ -159,9 +159,9 @@ function renderList(){
 function renderLadder(){
   const el=$("ladder");
   if(!st.uid){$("ladderNote").textContent="";el.innerHTML=`<div class="card empty">Ingresa con tu cuenta para ver la escalerilla.<br><br><button class="cta" data-login="1">Ingresar</button></div>`;return}
-  $("ladderNote").textContent="1 punto por partido ganado. Si le ganas a alguien de más arriba, tomas su puesto y los demás bajan uno. Del 1 al 8 clasifican a la Copa Oro y del 9 al 16 a la Copa Plata. Solo participan socios con la cuota al día ($5.000 mensual).";
+  $("ladderNote").textContent="1 punto por partido ganado. Si le ganas a alguien de más arriba, tomas su puesto y los demás bajan uno. Del 1 al 8 clasifican a la Copa Oro y del 9 al 16 a la Copa Plata.";
   const sg=d=>d>0?"+"+d:String(d);
-  const rows=st.ladder.map(x=>`<tr class="${x.puesto<=8?"oro":x.puesto<=16?"plata":""}${x.id===st.uid?" me":""}"><td><span class="pos">${x.puesto}</span></td><td>${esc(x.nombre)}${x.id===st.uid?" (tú)":""}<br>${st.alDia.has(x.id)?'<span class="cuota ok">Cuota al día</span>':'<span class="cuota no">Cuota pendiente</span>'}</td><td>${x.pj}</td><td>${x.pg}</td><td>${x.pp}</td><td class="dif">${x.pj?sg(x.dif):"-"}</td></tr>`).join("");
+  const rows=st.ladder.map(x=>`<tr class="${x.puesto<=8?"oro":x.puesto<=16?"plata":""}${x.id===st.uid?" me":""}"><td><span class="pos">${x.puesto}</span></td><td>${esc(x.nombre)}${x.id===st.uid?" (tú)":""}<br>${st.alDia.has(x.id)?'<span class="cuota ok">Cuota al día</span>':st.isAdmin?'<span class="cuota no">Cuota pendiente</span>':""}</td><td>${x.pj}</td><td>${x.pg}</td><td>${x.pp}</td><td class="dif">${x.pj?sg(x.dif):"-"}</td></tr>`).join("");
   const recent=st.recent.slice(0,10).map(m=>{const jw=m.ganador_id===m.jugador_id;const w=jw?m.jugador:m.rival,l=jw?m.rival:m.jugador;
     return `<div class="match"><span><b>${esc(w)}</b> ganó a ${esc(l)}<em>${nice(m.fecha)} · ${COURTS[m.cancha-1].name}</em></span><span class="score">${setsTxt(m.sets,!jw)}</span>${st.isAdmin&&m.reserva_id?`<button class="del" data-delres="${esc(m.reserva_id)}">Quitar</button>`:""}</div>`}).join("");
   el.innerHTML=`<div class="card" style="font-size:13px"><b>Desafíos</b><br>${esc(challengeInfo())}</div>
@@ -229,7 +229,7 @@ function renderVerdict(){
 }
 function renderProfile(){
   const logged=!!st.uid;$("pCard").hidden=!logged;$("pLogin").hidden=logged;
-  if(logged){const ok=st.alDia.has(st.uid);$("pCuota").innerHTML=`<span class="cuota ${ok?"ok":"no"}">${ok?"Al día":"Pendiente"}</span> <span style="color:var(--muted);font-weight:600">${MONTHS[today.getMonth()]} · $5.000 mensual</span>`;
+  if(logged){const ok=st.alDia.has(st.uid);$("pCuota").innerHTML=`${ok?`<span class="cuota ok">Al día</span> <span style="color:var(--muted);font-weight:600">${MONTHS[today.getMonth()]} · $5.000 mensual</span>`:`<span style="color:var(--muted);font-weight:600">Sin registrar este mes · puedes reservar igual</span>`}`;
     $("pName").textContent=st.profile?.nombre||"—";$("pPhone").textContent=st.profile?.telefono||"—";$("pEmail").textContent=st.email}
   $("pHours").innerHTML=SOLO()?`Sábados, domingos y feriados: ${fmtJ(jFin())}`:`Lunes a viernes: ${fmtJ(jSem())}<br>Sábados, domingos y feriados: ${fmtJ(jFin())}`;
   $("pRules").textContent=`Fines de semana: se reservan desde el ${DIA_NOMBRE[ABRE_DIA()]} · Feriados: desde ${ABRE_FER()} ${ABRE_FER()===1?"día":"días"} antes${LIM_DIA()?` · Máximo ${LIM_DIA()===1?"una cancha":LIM_DIA()+" canchas"} por socio al día`:""} · Sin costo para socios.`;
