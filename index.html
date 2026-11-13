@@ -152,6 +152,24 @@
       </div>
     </section>
 
+    <!-- PARTIDO SIN RESERVA -->
+    <section class="view" id="v-match" hidden>
+      <button class="back" id="nmBack">‹ Volver a resultados</button>
+      <h3>Partido sin reserva</h3>
+      <div class="card">
+        <form id="nmForm" novalidate>
+          <label for="nmA">Jugador 1<select id="nmA" class="selfull"></select></label>
+          <label for="nmB">Jugador 2<select id="nmB" class="selfull"></select></label>
+          <label for="nmDate">Día<input id="nmDate" type="date"></label>
+          <label for="nmHour">Hora<select id="nmHour" class="selfull"></select></label>
+          <label for="nmCourt">Cancha<select id="nmCourt" class="selfull"><option value="1">Cancha 1</option><option value="2">Cancha 2</option></select></label>
+          <p class="err" id="nmErr" hidden></p>
+          <button class="cta" id="nmSave">Crear partido</button>
+          <p class="note">Después, en Admin → Resultados, tocas «Anotar resultado» cuando el partido termine.</p>
+        </form>
+      </div>
+    </section>
+
     <!-- ESCALERILLA -->
     <section class="view" id="v-ladder" hidden>
       <h3>Escalerilla</h3>
