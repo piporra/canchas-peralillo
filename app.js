@@ -79,8 +79,9 @@ async function loadOccupied(){if(!sb)return;const end=new Date(today);end.setDat
   if(error&&st.uid)({data,error}=await sb.rpc("agenda",args));if(error)return;
   st.occupied=new Set((data||[]).map(r=>`${r.fecha}|${r.cancha}|${r.hora}`));
   st.who=new Map((data||[]).filter(r=>"nombre" in r).map(r=>[`${r.fecha}|${r.cancha}|${r.hora}`,{nombre:r.nombre,mio:r.es_mio,rival:r.rival,esc:r.escalerilla}]))}
-async function loadMine(){st.mine=[];if(!sb||!st.uid)return;
-  const {data}=await sb.from("reservas").select("*").eq("user_id",st.uid).gte("fecha",addDays(key(today),-45)).order("fecha").order("hora");st.mine=data||[]}
+async function loadMine(){st.mine=[];st.asRival=[];if(!sb||!st.uid)return;
+  const [{data},rv]=await Promise.all([sb.from("reservas").select("*").eq("user_id",st.uid).gte("fecha",addDays(key(today),-45)).order("fecha").order("hora"),sb.rpc("reservas_como_rival")]);
+  st.mine=data||[];st.asRival=(rv.data||[]).map(r=>({...r,comoRival:true}))}
 async function loadAdmin(){st.adminRes=[];st.sinRes=[];if(!sb||!st.isAdmin)return;
   sb.rpc("partidos_sin_reserva").then(({data})=>{st.sinRes=data||[];if(st.view==="admin"&&st.adm==="res")renderAdmin()});
   const {data}=await sb.from("reservas").select("*, perfiles(nombre,telefono)").gte("fecha",addDays(key(today),-45)).order("fecha").order("hora");st.adminRes=data||[]}
@@ -188,20 +189,22 @@ function renderSummary(){
 function renderList(){
   if(!st.uid){$("list").innerHTML=`<div class="card empty">Ingresa con tu cuenta para ver tus reservas.<br><br><button class="cta" data-login="1">Ingresar</button></div>`;return}
   const card=(r,extra)=>{const d=parse(r.fecha);return `<div class="card"><div class="res"><div class="when"><b>${d.getDate()}</b><small>${MONTHS[d.getMonth()].slice(0,3)}</small></div>
-    <div class="info"><strong>${COURTS[r.cancha-1].name} · ${hh(r.hora)} – ${hh(r.fin)}</strong><small>${DAYS[d.getDay()]} · ${esc(r.id)}</small><small style="display:block">${rivalTxt(r)?"vs "+esc(rivalTxt(r))+" · ":""}${tipoTxt(r)}</small>${extra.chip?`<div style="margin-top:4px"><span class="chip ${r.estado}">${LABEL[r.estado]}</span></div>`:""}</div>
+    <div class="info"><strong>${COURTS[r.cancha-1].name} · ${hh(r.hora)} – ${hh(r.fin)}</strong><small>${DAYS[d.getDay()]} · ${esc(r.id)}</small><small style="display:block">${r.comoRival?`vs ${esc(r.reservo)} (reservó) · `:rivalTxt(r)?"vs "+esc(rivalTxt(r))+" · ":""}${tipoTxt(r)}</small>${extra.chip?`<div style="margin-top:4px"><span class="chip ${r.estado}">${LABEL[r.estado]}</span></div>`:""}</div>
     ${extra.side||""}</div>${extra.below||""}</div>`};
-  const next=st.mine.filter(r=>!played(r));
-  const past=st.mine.filter(r=>played(r)&&r.estado==="confirmada").sort((a,b)=>(b.fecha+p2(b.hora)).localeCompare(a.fecha+p2(a.hora)));
+  const all=[...st.mine,...(st.asRival||[])].sort((a,b)=>(a.fecha+p2(a.hora)).localeCompare(b.fecha+p2(b.hora)));
+  const next=all.filter(r=>!played(r));
+  const past=all.filter(r=>played(r)&&r.estado==="confirmada").sort((a,b)=>(b.fecha+p2(b.hora)).localeCompare(a.fecha+p2(a.hora)));
   let html='<div class="subhead">Próximas</div>';
-  html+=next.length?next.map(r=>card(r,{chip:true,side:r.estado==="confirmada"?`<button data-cancel="${esc(r.id)}">Anular</button>`:"",below:r.estado==="confirmada"?`<button class="link" data-edit="${esc(r.id)}" style="font-size:13px;margin-top:8px">Editar rival o tipo de partido</button>`:""})).join("")
+  html+=next.length?next.map(r=>r.comoRival?card(r,{chip:true}):card(r,{chip:true,side:r.estado==="confirmada"?`<button data-cancel="${esc(r.id)}">Anular</button>`:"",below:r.estado==="confirmada"?`<button class="link" data-edit="${esc(r.id)}" style="font-size:13px;margin-top:8px">Editar rival o tipo de partido</button>`:""})).join("")
     :`<div class="card empty">No tienes reservas próximas.<br>Elige cancha y horario en <b>Reservar</b>.</div>`;
   if(past.length){
     html+='<div class="subhead">Jugadas</div>';
     html+=past.map(r=>{const m=resultOf(r.id);
-      if(r.escalerilla===false)return card(r,{below:`<div class="result"><span>Amistoso: no cuenta para la escalerilla</span><button class="link" data-edit="${esc(r.id)}" style="font-size:12px">Cambiar</button></div>`});
+      if(r.escalerilla===false)return card(r,{below:`<div class="result"><span>Amistoso: no cuenta para la escalerilla</span>${r.comoRival?"":`<button class="link" data-edit="${esc(r.id)}" style="font-size:12px">Cambiar</button>`}</div>`});
       if(!m)return card(r,{below:`<button class="btn-sm" data-result="${esc(r.id)}">Anotar resultado</button>`});
       const won=m.ganador_id===st.uid;
-      return card(r,{below:`<div class="result"><span>vs <b>${esc(m.rival)}</b><br><span class="score">${setsTxt(m.sets)}</span></span><span style="display:flex;flex-direction:column;align-items:flex-end;gap:4px"><span class="pill ${won?"w":"l"}">${won?"Ganaste":"Perdiste"}</span><button class="link" data-result="${esc(r.id)}" style="font-size:12px">Editar</button></span></div>`})}).join("");
+      const flip=m.rival_id===st.uid;
+      return card(r,{below:`<div class="result"><span>vs <b>${esc(flip?m.jugador:m.rival)}</b><br><span class="score">${setsTxt(m.sets,flip)}</span></span><span style="display:flex;flex-direction:column;align-items:flex-end;gap:4px"><span class="pill ${won?"w":"l"}">${won?"Ganaste":"Perdiste"}</span><button class="link" data-result="${esc(r.id)}" style="font-size:12px">Editar</button></span></div>`})}).join("");
   }
   $("list").innerHTML=html;
 }
@@ -225,8 +228,8 @@ function renderLadder(){
     <div class="card" style="padding:4px 12px">${recent||'<p class="note" style="padding:8px 0">Todavía no hay resultados anotados.</p>'}</div>`;
 }
 async function openResult(id,admin){
-  const r=(admin?st.adminRes:st.mine).find(x=>x.id===id);if(!r)return;
-  st.resTarget=r;st.resFree=null;st.resAdmin=!!admin;$("resErr").hidden=true;$("resRival").disabled=false;
+  const r=(admin?st.adminRes:[...st.mine,...(st.asRival||[])]).find(x=>x.id===id);if(!r)return;
+  st.resTarget=r;st.resFree=null;st.resAdmin=!!admin;st.resAsRival=!admin&&!!r.comoRival;$("resErr").hidden=true;$("resRival").disabled=false;
   if(!st.socios){const {data}=await sb.rpc("socios");st.socios=data||[]}
   const m=resultOf(id),owner=admin?((r.perfiles||{}).nombre||"Quien reservó"):"Tú";
   $("resOwnerName").textContent=owner;
@@ -234,14 +237,19 @@ async function openResult(id,admin){
   $("resInfo").innerHTML=`<b>${nice(r.fecha)}</b> · ${COURTS[r.cancha-1].name} · ${hh(r.hora)} – ${hh(r.fin)}`+(admin?`<div class="note" style="margin-top:6px">Reservó <b>${esc(owner)}</b>. Anota el marcador desde su lado.</div>`:`<div class="note" style="margin-top:6px">${esc(challengeInfo())}</div>`);
   $("resRivalLabel").firstChild.textContent=admin?`¿Contra quién jugó ${owner}?`:"¿Contra quién jugaste?";
   $("resRival").innerHTML=`<option value="">Elige un socio</option>`+st.socios.filter(s=>s.id!==r.user_id).map(s=>`<option value="${s.id}" ${(m?m.rival_id:r.rival_id)===s.id?"selected":""}>${esc(s.nombre)}</option>`).join("");
-  const sets=m?m.sets:[];
+  if(st.resAsRival){
+    $("resInfo").innerHTML=`<b>${nice(r.fecha)}</b> · ${COURTS[r.cancha-1].name} · ${hh(r.hora)} – ${hh(r.fin)}<div class="note" style="margin-top:6px">Reservó <b>${esc(r.reservo)}</b>. Anota el marcador desde tu lado.</div>`;
+    $("resRivalLabel").firstChild.textContent="Rival";
+    $("resRival").innerHTML=`<option value="${r.user_id}" selected>${esc(r.reservo)}</option>`;$("resRival").disabled=true;
+  }
+  let sets=m?m.sets:[];if(st.resAsRival)sets=sets.map(([a,b])=>[b,a]);
   [["s1a","s1b"],["s2a","s2b"],["s3a","s3b"]].forEach(([x,y],i)=>{$(x).value=sets[i]?sets[i][0]:"";$(y).value=sets[i]?sets[i][1]:""});
   $("resDelete").hidden=!m;delete $("resDelete").dataset.armed;$("resDelete").textContent="Borrar este resultado";
   go("result");renderVerdict();
 }
 async function openFree(id){
   const m=st.sinRes.find(x=>x.id===id);if(!m)return;
-  st.resFree=m;st.resTarget=null;st.resAdmin=true;$("resErr").hidden=true;
+  st.resFree=m;st.resTarget=null;st.resAdmin=true;st.resAsRival=false;$("resErr").hidden=true;
   $("resOwnerName").textContent=m.jugador;
   $("resBack").textContent="‹ Volver a resultados";
   $("resInfo").innerHTML=`<b>${nice(m.fecha)}</b> · ${COURTS[m.cancha-1].name} · ${hh(m.hora)}<div class="note" style="margin-top:6px">Partido sin reserva. Anota el marcador desde el lado de <b>${esc(m.jugador)}</b>.</div>`;
@@ -412,6 +420,7 @@ $("resForm").onsubmit=async e=>{e.preventDefault();
   if(!$("resRival").value)return showErr("resErr","Elige al socio contra quien jugaste.");
   $("resSave").disabled=true;
   const {error}=st.resFree?await sb.rpc("resultado_partido",{p_id:st.resFree.id,p_sets:r.sets})
+    :st.resAsRival?await sb.rpc("registrar_resultado",{p_reserva:st.resTarget.id,p_rival:st.uid,p_sets:r.sets.map(([a,b])=>[b,a])})
     :await sb.rpc("registrar_resultado",{p_reserva:st.resTarget.id,p_rival:$("resRival").value,p_sets:r.sets});
   $("resSave").disabled=false;
   if(error)return showErr("resErr",errMsg(error));
