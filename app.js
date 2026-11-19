@@ -184,7 +184,10 @@ async function openEdit(id,admin){
 }
 function renderSummary(){
   $("sumList").innerHTML=`<dt>Cancha</dt><dd>${COURTS[st.court-1].name}</dd><dt>Fecha</dt><dd>${nice(st.date)}</dd><dt>Horario</dt><dd>${hh(st.hour)} – ${hh(endOf(st.date,st.hour))}</dd><dt>A nombre de</dt><dd>${esc(st.profile?.nombre)}</dd><dt>Costo</dt><dd>Sin costo para socios</dd>`;
-  if(!$("cfFields").dataset.ready){$("cfFields").innerHTML=matchFields("cf",null,st.uid);$("cfFields").dataset.ready=1;mfSync("cf")}
+  if(!$("cfFields").dataset.ready){
+    const holder=st.isAdmin?`<label for="cfHolder" style="margin-bottom:12px">Reservar a nombre de <span class="note" style="font-weight:600">(solo administradores)</span><select id="cfHolder" class="selfull">
+      <option value="">Yo (${esc(st.profile?.nombre||"")})</option>${(st.socios||[]).filter(s=>s.id!==st.uid).map(s=>`<option value="${s.id}">${esc(s.nombre)}</option>`).join("")}</select></label>`:"";
+    $("cfFields").innerHTML=holder+matchFields("cf",null,st.uid);$("cfFields").dataset.ready=1;mfSync("cf")}
 }
 function renderList(){
   if(!st.uid){$("list").innerHTML=`<div class="card empty">Ingresa con tu cuenta para ver tus reservas.<br><br><button class="cta" data-login="1">Ingresar</button></div>`;return}
@@ -468,14 +471,17 @@ $("cta").onclick=async()=>{
   if(st.view==="done"){st.hour=null;return go("book")}
   if(st.view!=="confirm"||busy)return;
   if(isTaken(st.date,st.court,st.hour))return showErr("confirmErr","Ese horario se acaba de ocupar. Vuelve y elige otro.");
-  if(LIM_DIA()&&myDayCount(st.date)>=LIM_DIA())return showErr("confirmErr",LIM_DIA()===1?"Ya tienes una cancha reservada ese día. Cada socio puede reservar una cancha por día.":`Ya tienes ${LIM_DIA()} canchas reservadas ese día, que es el máximo por socio.`);
+  const holder=st.isAdmin&&$("cfHolder")?$("cfHolder").value:"";
+  if(!holder&&LIM_DIA()&&myDayCount(st.date)>=LIM_DIA())return showErr("confirmErr",LIM_DIA()===1?"Ya tienes una cancha reservada ese día. Cada socio puede reservar una cancha por día.":`Ya tienes ${LIM_DIA()} canchas reservadas ese día, que es el máximo por socio.`);
   const mf=mfRead("cf",true);if(mf.err)return showErr("confirmErr",mf.err);
   busy=true;$("cta").disabled=true;
-  const {data,error}=await sb.rpc("reservar",{p_cancha:st.court,p_fecha:st.date,p_hora:st.hour,p_escalerilla:mf.e,p_rival:mf.rival,p_rival_nombre:mf.nombre});
+  if(holder&&mf.rival===holder){busy=false;$("cta").disabled=false;return showErr("confirmErr","El rival debe ser otro socio.")}
+  const {data,error}=holder?await sb.rpc("reservar_para",{p_socio:holder,p_cancha:st.court,p_fecha:st.date,p_hora:st.hour,p_escalerilla:mf.e,p_rival:mf.rival,p_rival_nombre:mf.nombre})
+    :await sb.rpc("reservar",{p_cancha:st.court,p_fecha:st.date,p_hora:st.hour,p_escalerilla:mf.e,p_rival:mf.rival,p_rival_nombre:mf.nombre});
   busy=false;
   if(error){showErr("confirmErr",errMsg(error));renderCta();loadOccupied().then(()=>{});return}
   const r=Array.isArray(data)?data[0]:data;
-  $("doneText").textContent=`${COURTS[st.court-1].name}, ${nice(st.date)} de ${hh(r.hora)} a ${hh(r.fin)}`;
+  $("doneText").textContent=`${COURTS[st.court-1].name}, ${nice(st.date)} de ${hh(r.hora)} a ${hh(r.fin)}${holder?` · a nombre de ${socioName(holder)}`:""}`;
   $("doneCode").textContent=r.id;go("done");refresh();
 };
 
