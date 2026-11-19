@@ -306,6 +306,15 @@ function admCard(r,mode){
   ${r.estado!=="confirmada"?`<div class="who">${r.estado==="anulada"?"Anulada":"Liberada"} el ${fmtAt(r.cambio_estado)} · la cancha quedó libre</div>`:""}
   ${mode==="release"?`<div class="adm-actions"><button class="btn-no" data-admedit="${esc(r.id)}" style="background:var(--green-soft);color:var(--green)">Editar partido</button><button class="btn-no" data-rel="${esc(r.id)}">Liberar cancha</button></div>`:""}</div>`;
 }
+function progDay(k){const d=parse(k),n=DIA_NOMBRE[d.getDay()];return `${n[0].toUpperCase()+n.slice(1)} ${d.getDate()} de ${MONTHS[d.getMonth()].toLowerCase()}`}
+function progDays(){const t=key(today),dw=parse(t).getDay();
+  const sat=addDays(t,(dw===0?-1:6-dw)+7*(st.progOff||0)),out=[];
+  for(let i=-5;i<=1;i++){const k=addDays(sat,i);if(especial(k))out.push(k)}return out}
+function progList(days){return st.adminRes.filter(r=>r.estado==="confirmada"&&days.includes(r.fecha))
+  .sort((a,b)=>(a.fecha+p2(a.hora)+a.cancha).localeCompare(b.fecha+p2(b.hora)+b.cancha))}
+function progText(){const days=progDays(),list=progList(days);
+  return "🎾 *Programación Club de Tenis Peralillo*\n"+days.map(k=>{const rs=list.filter(r=>r.fecha===k);if(!rs.length)return "";
+    return `\n*${progDay(k)}*\n`+rs.map(r=>`${hh(r.hora)} · ${COURTS[r.cancha-1].name} · ${(r.perfiles||{}).nombre||""} vs ${rivalTxt(r)||"por definir"}${r.escalerilla===true?" (escalerilla)":r.escalerilla===false?" (amistoso)":""}`).join("\n")}).join("")}
 function renderAdmin(){
   document.querySelectorAll("#admTabs button").forEach(b=>b.setAttribute("aria-pressed",b.dataset.a===st.adm));
   const anul=st.adminRes.filter(r=>r.fecha>=key(today)&&r.estado!=="confirmada").length;$("anulBadge").hidden=!anul;$("anulBadge").textContent=anul;
@@ -315,6 +324,21 @@ function renderAdmin(){
     const intro=st.adm==="anul"?'<p class="note">Reservas próximas que el jugador anuló o que el club liberó. Esas canchas ya están disponibles.</p>':"";
     body.innerHTML=intro+(list.length?list.map(r=>admCard(r,st.adm==="ok"?"release":"")).join("")
       :`<div class="card empty">${st.adm==="ok"?"No hay reservas próximas.":"No hay canchas anuladas ni liberadas."}</div>`);
+  }else if(st.adm==="prog"){
+    const days=progDays(),list=progList(days);
+    const head=`<div class="card" style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+        <button class="arrow" data-pweek="-1" aria-label="Fin de semana anterior"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M15 6l-6 6 6 6"/></svg></button>
+        <div style="text-align:center"><b style="font-family:var(--display);font-size:20px;text-transform:uppercase;color:var(--green)">${(st.progOff||0)===0?"Este fin de semana":(st.progOff>0?"Fin de semana siguiente":"Fin de semana anterior")}</b><div class="note">${days.length?nice(days[0])+(days.length>1?" al "+nice(days[days.length-1]):""):""} · ${list.length} ${list.length===1?"partido":"partidos"}</div></div>
+        <button class="arrow" data-pweek="1" aria-label="Fin de semana siguiente"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M9 6l6 6-6 6"/></svg></button></div>`;
+    const blocks=days.map(k=>{const rs=list.filter(r=>r.fecha===k),fer=holidayName(k);
+      const total=jFin().length*COURTS.length;
+      return `<div class="card" style="padding:10px 12px"><div class="sec-title"><h4>${progDay(k)}</h4><span>${fer?esc(fer)+" · ":""}${rs.length} de ${total} ocupadas</span></div>
+        ${rs.length?rs.map(r=>{const p=r.perfiles||{},rv=rivalTxt(r);
+          return `<div class="match"><span style="flex:0 0 auto;width:62px"><b>${hh(r.hora)}</b><em>a ${hh(r.fin)}</em></span><span style="flex:1;min-width:0;text-align:left"><b>${esc(p.nombre||"Sin nombre")} vs ${rv?esc(rv):'<i style="color:var(--muted)">por definir</i>'}</b><em>${COURTS[r.cancha-1].name} · ${tipoTxt(r)}</em></span></div>`}).join("")
+          :'<p class="note" style="padding:6px 0">Sin reservas.</p>'}</div>`}).join("");
+    body.innerHTML=head+(st.adminRes.length||list.length?blocks:'<div class="card empty">Cargando…</div>')+
+      (list.length?'<button class="btn-sm" id="progCopy" style="margin-top:0">Copiar programación para WhatsApp</button>':"")+
+      '<p class="note">Solo partidos confirmados. Las reservas anuladas o liberadas no aparecen.</p>';
   }else if(st.adm==="cuo"){
     const m=st.cuotaMes||mesActual(),n=st.cuotas.filter(x=>x.pagado).length;
     body.innerHTML=`<div class="card" style="display:flex;align-items:center;justify-content:space-between;gap:8px">
@@ -530,6 +554,11 @@ $("logout").onclick=async()=>{await sb.auth.signOut();toast("Sesión cerrada");g
 $("goLogin").onclick=()=>openLogin("profile");
 
 /* ---------- eventos: administración ---------- */
+document.addEventListener("click",async e=>{
+  const w=e.target.closest("[data-pweek]");if(w){st.progOff=(st.progOff||0)+Number(w.dataset.pweek);renderAdmin();return}
+  if(e.target.closest("#progCopy")){const t=progText();
+    try{await navigator.clipboard.writeText(t);toast("Programación copiada. Pégala en WhatsApp.")}
+    catch(_){window.open("https://wa.me/?text="+encodeURIComponent(t),"_blank")}}});
 $("admTabs").onclick=async e=>{const b=e.target.closest("[data-a]");if(!b)return;st.adm=b.dataset.a;st.draft=null;renderAdmin();if(st.adm==="cuo"){await loadCuotas();renderAdmin()}};
 $("admBody").addEventListener("change",e=>{const d=st.draft;if(!d)return;const t=e.target;
   if(t.dataset.f){d[t.dataset.f]=Math.max(0,+t.value||0);if(t.dataset.f==="soloFinde")renderAdmin();return}
