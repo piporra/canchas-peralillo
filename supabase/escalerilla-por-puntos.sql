@@ -1,8 +1,8 @@
 -- =====================================================================
 -- Escalerilla ordenada por puntos (temporal, decisión del club 23/11/2026).
 -- Con config.datos.escalerillaPorPuntos = true, los que ya tienen puesto
--- (2+ partidos) se ordenan por puntos; empate: menos derrotas; luego el
--- orden de la escalerilla. Para volver a la regla de desafíos:
+-- (2+ partidos) se ordenan por puntos; empate: diferencia de sets, luego
+-- diferencia de games, luego menos derrotas. La columna dif = diferencia de sets. Para volver a la regla de desafíos:
 --   update public.config set datos = datos || '{"escalerillaPorPuntos": false}' where id = 1;
 -- =====================================================================
 create or replace function public.ranking_v2()
@@ -75,23 +75,38 @@ begin
   end loop;
 
   return query
-    with st as (
+    with sx0 as (
+      select m.jugador as pid, s.v as v from public.partidos m, jsonb_array_elements(m.sets) s(v) where m.ganador is not null
+      union all
+      select m.rival, jsonb_build_array(s.v -> 1, s.v -> 0) from public.partidos m, jsonb_array_elements(m.sets) s(v) where m.ganador is not null
+    ),
+    sx as (
+      select sx0.pid,
+             sum(case when (sx0.v ->> 0)::int > (sx0.v ->> 1)::int then 1 else -1 end)::int as sd,
+             sum((sx0.v ->> 0)::int - (sx0.v ->> 1)::int)::int as gd
+      from sx0 group by sx0.pid
+    ),
+    st as (
       select p.id, p.nombre, p.creado,
              coalesce((gms ->> p.id::text)::int, 0) as j,
              coalesce((wns ->> p.id::text)::int, 0) as g,
+             coalesce(sx.sd, 0) as sd,
+             coalesce(sx.gd, 0) as gd,
              array_position(arr, p.id) as ap
-      from public.perfiles p
+      from public.perfiles p left join sx on sx.pid = p.id
     ),
     ord as (
       select st.*,
              row_number() over (order by (st.ap is null),
                                 case when por_pts and st.ap is not null then st.g * p_g + (st.j - st.g) * p_p end desc nulls last,
+                                case when por_pts and st.ap is not null then st.sd end desc nulls last,
+                                case when por_pts and st.ap is not null then st.gd end desc nulls last,
                                 case when por_pts and st.ap is not null then st.j - st.g end asc nulls last,
                                 st.ap,
-                                st.g desc, (st.j > 0) desc, (2 * st.g - st.j) desc, st.creado) as rn
+                                st.g desc, (st.j > 0) desc, st.sd desc, st.gd desc, (2 * st.g - st.j) desc, st.creado) as rn
       from st
     )
-    select ord.rn::int, ord.id, ord.nombre, ord.j, ord.g, ord.j - ord.g, 2 * ord.g - ord.j,
+    select ord.rn::int, ord.id, ord.nombre, ord.j, ord.g, ord.j - ord.g, ord.sd,
            ord.g * p_g + (ord.j - ord.g) * p_p, ord.ap is not null
     from ord
     order by ord.rn;
