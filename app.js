@@ -214,7 +214,7 @@ function renderList(){
 function renderLadder(){
   const el=$("ladder");
   if(!st.uid){$("ladderNote").textContent="";el.innerHTML=`<div class="card empty">Ingresa con tu cuenta para ver la escalerilla.<br><br><button class="cta" data-login="1">Ingresar</button></div>`;return}
-  $("ladderNote").textContent="1 punto por partido ganado. Tus 2 primeros partidos son de clasificación: al completarlos entras a la escalerilla según tus puntos. Desde el 3.º, si le ganas a alguien de más arriba, tomas su puesto y los demás bajan uno. Del 1 al 8 clasifican a la Copa Oro y del 9 al 16 a la Copa Plata.";
+  $("ladderNote").textContent="1 punto por partido ganado. Tus 2 primeros partidos son de clasificación: al completarlos entras a la escalerilla. Por ahora la escalerilla se ordena por puntos (con empate, va primero quien tiene menos derrotas). Del 1 al 8 clasifican a la Copa Oro y del 9 al 16 a la Copa Plata.";
   const sg=d=>d>0?"+"+d:String(d);
   const row=(x,n,zone)=>`<tr class="${zone?(n<=8?"oro":n<=16?"plata":""):""}${x.id===st.uid?" me":""}"><td><span class="pos">${n}</span></td><td>${esc(x.nombre)}${x.id===st.uid?" (tú)":""}<br>${st.alDia.has(x.id)?'<span class="cuota ok">Cuota al día</span>':st.isAdmin?'<span class="cuota no">Cuota pendiente</span>':""}</td><td>${x.pj}</td><td>${x.pg}</td><td>${x.pp}</td><td class="dif">${x.pj?sg(x.dif):"-"}</td></tr>`;
   const head='<thead><tr><th>#</th><th>Nombre</th><th>PJ</th><th>PG</th><th>PP</th><th>Dif</th></tr></thead>';
