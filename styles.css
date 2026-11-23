@@ -179,9 +179,11 @@ h3{margin:0;font-family:var(--display);font-size:22px;text-transform:uppercase;l
 nav.bottom button{padding:4px 8px}
 .ladder tr.oro .pos{background:var(--orange);color:#fff}
 .ladder tr.plata .pos{background:#b9c2bd;color:#1e2a24}
+.ladder tr.bronce .pos{background:#b87333;color:#fff}
+.ladder tr.revancha .pos{background:var(--green);color:#fff}
 .ladder tr.me td{font-weight:800}
 .pos-key{display:inline-block;width:10px;height:10px;border-radius:50%;margin:0 5px -1px 0}
-.pos-key.oro{background:var(--orange)}.pos-key.plata{background:#b9c2bd}
+.pos-key.oro{background:var(--orange)}.pos-key.plata{background:#b9c2bd}.pos-key.bronce{background:#b87333}.pos-key.revancha{background:var(--green)}
 .cuota{display:inline-block;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;padding:1px 6px;border-radius:999px;margin-top:2px}
 .cuota.ok{background:var(--green-soft);color:var(--ok)}
 .cuota.no{background:var(--taken);color:var(--muted)}

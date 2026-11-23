@@ -55,14 +55,6 @@ function played(r){const t=key(today);return r.fecha<t||(r.fecha===t&&r.hora<=ne
 function resultOf(id){return st.recent.find(m=>m.reserva_id===id)}
 function setsTxt(sets,flip){return (sets||[]).map(([a,b])=>flip?`${b}-${a}`:`${a}-${b}`).join(" · ")}
 const placed=()=>st.ladder.filter(x=>x.clasificado!==false);
-function challengeInfo(){
-  const me=st.ladder.find(x=>x.id===st.uid);
-  if(!me)return "Apareces en la escalerilla al crear tu cuenta.";
-  if(me.clasificado===false||me.pj<2)return `Te ${2-me.pj===1?"queda 1 partido":"quedan 2 partidos"} de libre elección: puedes desafiar a cualquier socio.`;
-  if(me.puesto===1)return "Estás en el puesto 1. Te pueden desafiar los 5 puestos de abajo.";
-  const t=placed().filter(x=>x.puesto<me.puesto&&x.puesto>=me.puesto-5).map(x=>`${x.puesto}. ${x.nombre}`);
-  return `Puedes desafiar a: ${t.join(", ")}.`;
-}
 function myDayCount(k){return st.mine.filter(r=>r.estado==="confirmada"&&r.fecha===k).length}
 function fmtJ(a){return a.map(([x,y])=>`${x}–${y}`).join(", ")+" h"}
 
@@ -214,17 +206,16 @@ function renderList(){
 function renderLadder(){
   const el=$("ladder");
   if(!st.uid){$("ladderNote").textContent="";el.innerHTML=`<div class="card empty">Ingresa con tu cuenta para ver la escalerilla.<br><br><button class="cta" data-login="1">Ingresar</button></div>`;return}
-  $("ladderNote").textContent="1 punto por partido ganado. Tus 2 primeros partidos son de clasificación: al completarlos entras a la escalerilla. Por ahora la escalerilla se ordena por puntos (con empate, va primero quien tiene menos derrotas). Del 1 al 8 clasifican a la Copa Oro y del 9 al 16 a la Copa Plata.";
+  $("ladderNote").textContent="1 punto por partido ganado. Tus 2 primeros partidos son de clasificación: al completarlos entras a la escalerilla. Todos contra todos: puedes jugar con cualquier socio. La escalerilla se ordena por puntos (con empate, va primero quien tiene menos derrotas). Finales: Copa Oro (1–8), Copa Plata (9–16), Copa Bronce (17–24) y Copa Revancha (25–32).";
   const sg=d=>d>0?"+"+d:String(d);
-  const row=(x,n,zone)=>`<tr class="${zone?(n<=8?"oro":n<=16?"plata":""):""}${x.id===st.uid?" me":""}"><td><span class="pos">${n}</span></td><td>${esc(x.nombre)}${x.id===st.uid?" (tú)":""}<br>${st.alDia.has(x.id)?'<span class="cuota ok">Cuota al día</span>':st.isAdmin?'<span class="cuota no">Cuota pendiente</span>':""}</td><td>${x.pj}</td><td>${x.pg}</td><td>${x.pp}</td><td class="dif">${x.pj?sg(x.dif):"-"}</td></tr>`;
+  const row=(x,n,zone)=>`<tr class="${zone?(n<=8?"oro":n<=16?"plata":n<=24?"bronce":n<=32?"revancha":""):""}${x.id===st.uid?" me":""}"><td><span class="pos">${n}</span></td><td>${esc(x.nombre)}${x.id===st.uid?" (tú)":""}<br>${st.alDia.has(x.id)?'<span class="cuota ok">Cuota al día</span>':st.isAdmin?'<span class="cuota no">Cuota pendiente</span>':""}</td><td>${x.pj}</td><td>${x.pg}</td><td>${x.pp}</td><td class="dif">${x.pj?sg(x.dif):"-"}</td></tr>`;
   const head='<thead><tr><th>#</th><th>Nombre</th><th>PJ</th><th>PG</th><th>PP</th><th>Dif</th></tr></thead>';
   const P=placed(),Q=st.ladder.filter(x=>x.clasificado===false);
   const recent=st.recent.slice(0,10).map(m=>{const jw=m.ganador_id===m.jugador_id;const w=jw?m.jugador:m.rival,l=jw?m.rival:m.jugador;
     return `<div class="match"><span><b>${esc(w)}</b> ganó a ${esc(l)}<em>${nice(m.fecha)} · ${COURTS[m.cancha-1].name}</em></span><span class="score">${setsTxt(m.sets,!jw)}</span>${st.isAdmin&&m.reserva_id?`<button class="del" data-delres="${esc(m.reserva_id)}">Quitar</button>`:""}</div>`}).join("");
-  el.innerHTML=`<div class="card" style="font-size:13px"><b>Desafíos</b><br>${esc(challengeInfo())}</div>
-    <div class="subhead">Escalerilla</div>
+  el.innerHTML=`<div class="subhead">Escalerilla</div>
     <div class="card" style="padding:6px 8px">${P.length?`<table class="ladder">${head}<tbody>${P.map((x,i)=>row(x,i+1,true)).join("")}</tbody></table>`:'<p class="note" style="padding:10px">Todavía nadie completa sus 2 partidos de clasificación. El primero en hacerlo abre la escalerilla.</p>'}</div>
-    ${P.length?'<p class="note"><span class="pos-key oro"></span>Copa Oro (1–8) · <span class="pos-key plata"></span>Copa Plata (9–16)</p>':""}
+    ${P.length?'<p class="note"><span class="pos-key oro"></span>Copa Oro (1–8) · <span class="pos-key plata"></span>Copa Plata (9–16) · <span class="pos-key bronce"></span>Copa Bronce (17–24) · <span class="pos-key revancha"></span>Copa Revancha (25–32)</p>':""}
     ${Q.length?`<div class="subhead">En clasificación</div><p class="note" style="margin-top:-4px">Aún no completan sus 2 primeros partidos. Se ordenan por puntos.</p>
     <div class="card" style="padding:6px 8px"><table class="ladder">${head}<tbody>${Q.map((x,i)=>row(x,i+1,false)).join("")}</tbody></table></div>`:""}
     <div class="subhead">Últimos partidos</div>
@@ -237,7 +228,7 @@ async function openResult(id,admin){
   const m=resultOf(id),owner=admin?((r.perfiles||{}).nombre||"Quien reservó"):"Tú";
   $("resOwnerName").textContent=owner;
   $("resBack").textContent=admin?"‹ Volver a resultados":"‹ Volver a mis reservas";
-  $("resInfo").innerHTML=`<b>${nice(r.fecha)}</b> · ${COURTS[r.cancha-1].name} · ${hh(r.hora)} – ${hh(r.fin)}`+(admin?`<div class="note" style="margin-top:6px">Reservó <b>${esc(owner)}</b>. Anota el marcador desde su lado.</div>`:`<div class="note" style="margin-top:6px">${esc(challengeInfo())}</div>`);
+  $("resInfo").innerHTML=`<b>${nice(r.fecha)}</b> · ${COURTS[r.cancha-1].name} · ${hh(r.hora)} – ${hh(r.fin)}`+(admin?`<div class="note" style="margin-top:6px">Reservó <b>${esc(owner)}</b>. Anota el marcador desde su lado.</div>`:`<div class="note" style="margin-top:6px">Todos contra todos: anota el partido contra el socio que jugaste.</div>`);
   $("resRivalLabel").firstChild.textContent=admin?`¿Contra quién jugó ${owner}?`:"¿Contra quién jugaste?";
   $("resRival").innerHTML=`<option value="">Elige un socio</option>`+st.socios.filter(s=>s.id!==r.user_id).map(s=>`<option value="${s.id}" ${(m?m.rival_id:r.rival_id)===s.id?"selected":""}>${esc(s.nombre)}</option>`).join("");
   if(st.resAsRival){
