@@ -189,3 +189,5 @@ nav.bottom button{padding:4px 8px}
 .cuota.no{background:var(--taken);color:var(--muted)}
 .pay{flex:none;border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:999px;padding:7px 12px;font-weight:800;font-size:12px}
 .pay.on{background:var(--green);border-color:var(--green);color:#fff}
+
+.ladder td.pts{font-weight:800;color:var(--green);font-size:15px}
