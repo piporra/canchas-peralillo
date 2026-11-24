@@ -206,6 +206,7 @@
     <section class="view" id="v-profile" hidden>
       <h3>Perfil</h3>
       <div class="card" style="display:flex;flex-direction:column;gap:8px" id="pCard">
+        <div style="display:flex;align-items:center;gap:14px"><div id="pAvatar"></div><button class="btn-line" id="pFotoBtn" style="flex:0 1 auto;width:auto;padding:11px 18px">Cambiar foto</button></div>
         <div><small style="color:var(--muted)">Nombre</small><div id="pName" style="font-weight:800"></div></div>
         <div><small style="color:var(--muted)">Teléfono</small><div id="pPhone" style="font-weight:800"></div></div>
         <div><small style="color:var(--muted)">Cuota del club</small><div id="pCuota" style="font-weight:800"></div></div>
@@ -237,6 +238,7 @@
 </div>
 <div class="toast" id="toast" hidden></div>
 
+<input type="file" id="fotoInput" accept="image/*" style="position:fixed;left:-9999px;width:1px;height:1px;opacity:0" aria-hidden="true" tabindex="-1">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.57.4/dist/umd/supabase.js"></script>
 <script src="config.js"></script>
 <script src="app.js"></script>

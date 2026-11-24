@@ -167,6 +167,24 @@ document.addEventListener("click",ev=>{const b=ev.target.closest(".mf [data-tipo
   box.querySelectorAll("[data-tipo]").forEach(x=>x.setAttribute("aria-pressed",x===b));mfSync(box.dataset.px)});
 document.addEventListener("change",ev=>{const s=ev.target.closest(".mf select");if(!s)return;const px=s.closest(".mf").dataset.px;mfSync(px)});
 async function ensureSocios(){if(!st.socios){const {data}=await sb.rpc("socios");st.socios=data||[]}}
+function fotoOf(id){const s=(st.socios||[]).find(x=>x.id===id);return (s&&s.foto)||(id===st.uid&&st.profile?.foto)||""}
+function avatar(id,nombre,size){const f=fotoOf(id),ini=String(nombre||"?").trim().split(/\s+/).slice(0,2).map(w=>w[0]||"").join("").toUpperCase();
+  return f?`<img class="av" src="${esc(f)}" alt="" style="width:${size}px;height:${size}px" loading="lazy">`
+    :`<span class="av av-ini" style="width:${size}px;height:${size}px;font-size:${Math.round(size*.38)}px">${esc(ini)}</span>`}
+function prepFoto(file){return new Promise((ok,bad)=>{const img=new Image(),u=URL.createObjectURL(file);
+  img.onload=()=>{const S=360,c=document.createElement("canvas");c.width=c.height=S;const m=Math.min(img.width,img.height);
+    c.getContext("2d").drawImage(img,(img.width-m)/2,(img.height-m)/2,m,m,0,0,S,S);URL.revokeObjectURL(u);
+    c.toBlob(b=>b?ok(b):bad(new Error("No se pudo leer la foto.")),"image/jpeg",.85)};
+  img.onerror=()=>{URL.revokeObjectURL(u);bad(new Error("No se pudo leer la foto. Prueba con otra imagen."))};img.src=u})}
+async function subirFoto(file,socio){
+  try{toast("Subiendo foto…");const blob=await prepFoto(file);
+    const {error:e1}=await sb.storage.from("avatares").upload(`${socio}.jpg`,blob,{upsert:true,contentType:"image/jpeg",cacheControl:"3600"});if(e1)throw e1;
+    const url=sb.storage.from("avatares").getPublicUrl(`${socio}.jpg`).data.publicUrl+"?v="+Date.now();
+    const {error:e2}=await sb.rpc("poner_foto",{p_socio:socio,p_url:url});if(e2)throw e2;
+    const s=(st.socios||[]).find(x=>x.id===socio);if(s)s.foto=url;if(socio===st.uid&&st.profile)st.profile.foto=url;
+    toast("Foto actualizada");renderAll();if(st.view==="admin")renderAdmin()}
+  catch(err){toast(errMsg?errMsg(err):String(err.message||err))}}
+function pickFoto(socio){const i=$("fotoInput");i.dataset.socio=socio;i.value="";i.click()}
 async function openEdit(id,admin){
   await ensureSocios();
   const r=(admin?st.adminRes:st.mine).find(x=>x.id===id);if(!r)return;
@@ -208,7 +226,7 @@ function renderLadder(){
   if(!st.uid){$("ladderNote").textContent="";el.innerHTML=`<div class="card empty">Ingresa con tu cuenta para ver la escalerilla.<br><br><button class="cta" data-login="1">Ingresar</button></div>`;return}
   $("ladderNote").textContent="1 punto por partido ganado. Tus 2 primeros partidos son de clasificación: al completarlos entras a la escalerilla. Todos contra todos: puedes jugar con cualquier socio. La escalerilla se ordena por puntos. Si hay empate, desempata la diferencia de sets (Dif S) y luego la diferencia de games. Dif P es la diferencia de partidos ganados y perdidos. Finales: Copa Oro (1–8), Copa Plata (9–16), Copa Bronce (17–24) y Copa Revancha (25–32).";
   const sg=d=>d>0?"+"+d:String(d);
-  const row=(x,n,zone)=>`<tr class="${zone?(n<=8?"oro":n<=16?"plata":n<=24?"bronce":n<=32?"revancha":""):""}${x.id===st.uid?" me":""}"><td><span class="pos">${n}</span></td><td>${esc(x.nombre)}${x.id===st.uid?" (tú)":""}<br>${st.alDia.has(x.id)?'<span class="cuota ok">Cuota al día</span>':st.isAdmin?'<span class="cuota no">Cuota pendiente</span>':""}</td><td class="pts">${x.pts??x.pg}</td><td>${x.pj}</td><td>${x.pg}</td><td>${x.pp}</td><td class="dif">${x.pj?sg(x.pg-x.pp):"-"}</td><td class="dif">${x.pj?sg(x.dif):"-"}</td></tr>`;
+  const row=(x,n,zone)=>`<tr class="${zone?(n<=8?"oro":n<=16?"plata":n<=24?"bronce":n<=32?"revancha":""):""}${x.id===st.uid?" me":""}"><td><span class="pos">${n}</span></td><td><div class="nm">${avatar(x.id,x.nombre,30)}<div>${esc(x.nombre)}${x.id===st.uid?" (tú)":""}<br>${st.alDia.has(x.id)?'<span class="cuota ok">Cuota al día</span>':st.isAdmin?'<span class="cuota no">Cuota pendiente</span>':""}</div></div></td><td class="pts">${x.pts??x.pg}</td><td>${x.pj}</td><td>${x.pg}</td><td>${x.pp}</td><td class="dif">${x.pj?sg(x.pg-x.pp):"-"}</td><td class="dif">${x.pj?sg(x.dif):"-"}</td></tr>`;
   const head='<thead><tr><th>#</th><th>Nombre</th><th>Pts</th><th>PJ</th><th>PG</th><th>PP</th><th title="Diferencia de partidos">Dif P</th><th title="Diferencia de sets">Dif S</th></tr></thead>';
   const P=placed(),Q=st.ladder.filter(x=>x.clasificado===false);
   const recent=st.recent.slice(0,10).map(m=>{const jw=m.ganador_id===m.jugador_id;const w=jw?m.jugador:m.rival,l=jw?m.rival:m.jugador;
@@ -286,7 +304,7 @@ function renderVerdict(){
 function renderProfile(){
   const logged=!!st.uid;$("pCard").hidden=!logged;$("pLogin").hidden=logged;
   if(logged){const ok=st.alDia.has(st.uid);$("pCuota").innerHTML=`${ok?`<span class="cuota ok">Al día</span> <span style="color:var(--muted);font-weight:600">${MONTHS[today.getMonth()]} · $5.000 mensual</span>`:`<span style="color:var(--muted);font-weight:600">Sin registrar este mes · puedes reservar igual</span>`}`;
-    $("pName").textContent=st.profile?.nombre||"—";$("pPhone").textContent=st.profile?.telefono||"—";$("pEmail").textContent=st.email}
+    $("pAvatar").innerHTML=avatar(st.uid,st.profile?.nombre,72);$("pName").textContent=st.profile?.nombre||"—";$("pPhone").textContent=st.profile?.telefono||"—";$("pEmail").textContent=st.email}
   $("pHours").innerHTML=SOLO()?`Sábados, domingos y feriados: ${fmtJ(jFin())}`:`Lunes a viernes: ${fmtJ(jSem())}<br>Sábados, domingos y feriados: ${fmtJ(jFin())}`;
   $("pRules").textContent=`Fines de semana: se reservan desde el ${DIA_NOMBRE[ABRE_DIA()]} · Feriados: desde ${ABRE_FER()} ${ABRE_FER()===1?"día":"días"} antes${LIM_DIA()?` · Máximo ${LIM_DIA()===1?"una cancha":LIM_DIA()+" canchas"} por socio al día`:""} · Sin costo para socios.`;
 }
@@ -336,9 +354,9 @@ function renderAdmin(){
         <button class="arrow" data-cmes="-1" aria-label="Mes anterior"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M15 6l-6 6 6 6"/></svg></button>
         <div style="text-align:center"><b style="font-family:var(--display);font-size:20px;text-transform:uppercase;color:var(--green)">${mesNombre(m)}</b><div class="note">${n} de ${st.cuotas.length} socios al día · $5.000</div></div>
         <button class="arrow" data-cmes="1" aria-label="Mes siguiente"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M9 6l6 6-6 6"/></svg></button></div>
-      <div class="card" style="padding:4px 12px">${st.cuotas.length?st.cuotas.map(x=>`<div class="match"><span><b>${esc(x.nombre)}</b><em>${x.pagado?`Pagó · registrado el ${fmtAt(x.pagado_el)}`:esc(x.telefono||"")}</em></span>
+      <div class="card" style="padding:4px 12px">${st.cuotas.length?st.cuotas.map(x=>`<div class="match"><button class="avbtn" data-foto="${x.id}" aria-label="Cambiar foto de ${esc(x.nombre)}">${avatar(x.id,x.nombre,36)}</button><span style="flex:1;min-width:0;text-align:left"><b>${esc(x.nombre)}</b><em>${x.pagado?`Pagó · registrado el ${fmtAt(x.pagado_el)}`:esc(x.telefono||"")}</em></span>
         <button class="pay ${x.pagado?"on":""}" data-pay="${x.id}" data-v="${x.pagado?0:1}">${x.pagado?"Pagó ✓":"Marcar pago"}</button></div>`).join(""):'<p class="note" style="padding:8px 0">Cargando…</p>'}</div>
-      <p class="note">Toca «Marcar pago» cuando el socio pague la cuota del mes. Si te equivocas, toca de nuevo para quitarlo.</p>`;
+      <p class="note">Toca «Marcar pago» cuando el socio pague la cuota del mes. Si te equivocas, toca de nuevo para quitarlo. Toca la foto o las iniciales de un socio para ponerle su foto.</p>`;
   }else if(st.adm==="res"){
     const list=st.adminRes.filter(r=>r.estado==="confirmada"&&r.escalerilla!==false&&played(r)).sort((a,b)=>(b.fecha+p2(b.hora)).localeCompare(a.fecha+p2(a.hora)));
     const pend=list.filter(r=>!resultOf(r.id)).length;
@@ -545,7 +563,10 @@ $("logout").onclick=async()=>{await sb.auth.signOut();toast("Sesión cerrada");g
 $("goLogin").onclick=()=>openLogin("profile");
 
 /* ---------- eventos: administración ---------- */
+$("fotoInput").onchange=e=>{const f=e.target.files&&e.target.files[0];if(f)subirFoto(f,e.target.dataset.socio||st.uid)};
+$("pFotoBtn").onclick=()=>pickFoto(st.uid);
 document.addEventListener("click",async e=>{
+  const fb=e.target.closest("[data-foto]");if(fb&&st.isAdmin){pickFoto(fb.dataset.foto);return}
   const w=e.target.closest("[data-pweek]");if(w){st.progOff=(st.progOff||0)+Number(w.dataset.pweek);renderAdmin();return}
   if(e.target.closest("#progCopy")){const t=progText();
     try{await navigator.clipboard.writeText(t);toast("Programación copiada. Pégala en WhatsApp.")}
