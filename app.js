@@ -348,7 +348,7 @@ function cuadroHTML([cls,cup,off,c1,c2],P){
   [[0,7],[3,4],[2,5],[1,6]].forEach(([a,b],i)=>{o+=mt(0,qy[i],qw,pl(a),pl(b))});
   o+=mt(sx,sy[0],sw,{n:"Ganador C1",tbd:1},{n:"Ganador C2",tbd:1})+mt(sx,sy[1],sw,{n:"Ganador C3",tbd:1},{n:"Ganador C4",tbd:1})+mt(fx,fy,fw,{n:"Ganador S1",tbd:1},{n:"Ganador S2",tbd:1});
   o+=`</div><div class="cq-champ"><svg viewBox="0 0 48 48"><defs><linearGradient id="tg-${cls}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${c1}"/><stop offset="1" stop-color="${c2}"/></linearGradient></defs><path fill="url(#tg-${cls})" d="M14 6h20v6h7v4c0 6-4 10-9 11-1 4-4 7-6 8v5h6v4H16v-4h6v-5c-2-1-5-4-6-8-5-1-9-5-9-11v-4h7zm-3 10c0 3 2 6 4 7-1-2-1-4-1-7zm26 0h-3c0 3 0 5-1 7 2-1 4-4 4-7z"/></svg>
-    <div><b>Campeón ${cup}</b><span>Se define el día de finales</span></div><div class="slot">Por definir</div></div></div>`;
+    <div><b>Campeón ${cup}</b><span>Se define el día de finales</span></div><div class="slot">Por definir</div></div><div class="cq-credit">APP CREADA POR ESTEBAN LEÓN · © 2026</div></div>`;
   return o}
 function fitCuadro(){const w=document.querySelector("#cuadroBody .cq-wrap");if(!w)return;const k=w.clientWidth/540;const q=w.querySelector(".cq");q.style.transform=`scale(${k})`;w.style.height=(960*k)+"px"}
 function renderCuadro(){
@@ -385,7 +385,7 @@ function progList(days){return st.adminRes.filter(r=>r.estado==="confirmada"&&da
   .sort((a,b)=>(a.fecha+p2(a.hora)+a.cancha).localeCompare(b.fecha+p2(b.hora)+b.cancha))}
 function progText(){const days=progDays(),list=progList(days);
   return "🎾 *Programación Club de Tenis Peralillo*\n"+days.map(k=>{const rs=list.filter(r=>r.fecha===k);if(!rs.length)return "";
-    return `\n*${progDay(k)}*\n`+rs.map(r=>`${hh(r.hora)} · ${COURTS[r.cancha-1].name} · ${(r.perfiles||{}).nombre||""} vs ${rivalTxt(r)||"por definir"}${r.escalerilla===true?" (escalerilla)":r.escalerilla===false?" (amistoso)":""}`).join("\n")}).join("")}
+    return `\n*${progDay(k)}*\n`+rs.map(r=>`${hh(r.hora)} · ${COURTS[r.cancha-1].name} · ${(r.perfiles||{}).nombre||""} vs ${rivalTxt(r)||"por definir"}${r.escalerilla===true?" (escalerilla)":r.escalerilla===false?" (amistoso)":""}`).join("\n")}).join("")+"\n\n_App creada por Esteban León_"}
 function renderAdmin(){
   document.querySelectorAll("#admTabs button").forEach(b=>b.setAttribute("aria-pressed",b.dataset.a===st.adm));
   const anul=st.adminRes.filter(r=>r.fecha>=key(today)&&r.estado!=="confirmada").length;$("anulBadge").hidden=!anul;$("anulBadge").textContent=anul;

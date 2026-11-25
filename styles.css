@@ -244,3 +244,10 @@ nav.bottom button{flex:1 1 0;min-width:0;padding:4px 2px;font-size:10px;letter-s
 .cq-cup{white-space:nowrap}
 .cq.revancha .cq-cup{font-size:66px}
 nav.bottom button{white-space:nowrap;overflow:hidden;text-overflow:clip}
+.credit{text-align:center;padding:18px 8px 6px;color:var(--muted);font-size:12px;line-height:1.6;display:flex;flex-direction:column;align-items:center}
+.credit img{width:34px;height:34px;border-radius:50%;opacity:.9;margin-bottom:8px}
+.credit b{color:var(--green);letter-spacing:.04em}
+.credit-sm{text-align:center;color:var(--muted);font-size:11.5px;margin:18px 0 0;line-height:1.5}
+.credit-sm b{color:var(--green)}
+.cq-credit{position:absolute;left:0;right:0;bottom:10px;text-align:center;font-size:11px;font-weight:700;letter-spacing:.08em;color:rgba(255,255,255,.75)}
+.cq .cq-champ{bottom:38px}
