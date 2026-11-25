@@ -53,7 +53,7 @@ function nextOpen(){let best=null;for(let i=0;i<14;i++){const k=addDays(key(toda
 function isTaken(k,c,h){if(k===key(today)&&h<=new Date().getHours())return true;return st.occupied.has(`${k}|${c}|${h}`)}
 function played(r){const t=key(today);return r.fecha<t||(r.fecha===t&&r.hora<=new Date().getHours())}
 function resultOf(id){return st.recent.find(m=>m.reserva_id===id)}
-function setsTxt(sets,flip){return (sets||[]).map(([a,b])=>flip?`${b}-${a}`:`${a}-${b}`).join(" · ")}
+function setsTxt(sets,flip,ret){const t=(sets||[]).map(([a,b])=>flip?`${b}-${a}`:`${a}-${b}`).join(" · ");return ret?(t?t+" · ret.":"ret."):t}
 const placed=()=>st.ladder.filter(x=>x.clasificado!==false);
 function myDayCount(k){return st.mine.filter(r=>r.estado==="confirmada"&&r.fecha===k).length}
 function fmtJ(a){return a.map(([x,y])=>`${x}–${y}`).join(", ")+" h"}
@@ -217,7 +217,7 @@ function renderList(){
       if(!m)return card(r,{below:`<button class="btn-sm" data-result="${esc(r.id)}">Anotar resultado</button>`});
       const won=m.ganador_id===st.uid;
       const flip=m.rival_id===st.uid;
-      return card(r,{below:`<div class="result"><span>vs <b>${esc(flip?m.jugador:m.rival)}</b><br><span class="score">${setsTxt(m.sets,flip)}</span></span><span style="display:flex;flex-direction:column;align-items:flex-end;gap:4px"><span class="pill ${won?"w":"l"}">${won?"Ganaste":"Perdiste"}</span><button class="link" data-result="${esc(r.id)}" style="font-size:12px">Editar</button></span></div>`})}).join("");
+      return card(r,{below:`<div class="result"><span>vs <b>${esc(flip?m.jugador:m.rival)}</b><br><span class="score">${setsTxt(m.sets,flip,m.retiro)}</span></span><span style="display:flex;flex-direction:column;align-items:flex-end;gap:4px"><span class="pill ${won?"w":"l"}">${won?"Ganaste":"Perdiste"}</span><button class="link" data-result="${esc(r.id)}" style="font-size:12px">Editar</button></span></div>`})}).join("");
   }
   $("list").innerHTML=html;
 }
@@ -230,7 +230,7 @@ function renderLadder(){
   const head='<thead><tr><th>#</th><th>Nombre</th><th>Pts</th><th>PJ</th><th>PG</th><th>PP</th><th title="Diferencia de partidos">Dif P</th><th title="Diferencia de sets">Dif S</th></tr></thead>';
   const P=placed(),Q=st.ladder.filter(x=>x.clasificado===false);
   const recent=st.recent.slice(0,10).map(m=>{const jw=m.ganador_id===m.jugador_id;const w=jw?m.jugador:m.rival,l=jw?m.rival:m.jugador;
-    return `<div class="match"><span><b>${esc(w)}</b> ganó a ${esc(l)}<em>${nice(m.fecha)} · ${COURTS[m.cancha-1].name}</em></span><span class="score">${setsTxt(m.sets,!jw)}</span>${st.isAdmin&&m.reserva_id?`<button class="del" data-delres="${esc(m.reserva_id)}">Quitar</button>`:""}</div>`}).join("");
+    return `<div class="match"><span><b>${esc(w)}</b> ganó a ${esc(l)}<em>${nice(m.fecha)} · ${COURTS[m.cancha-1].name}</em></span><span class="score">${setsTxt(m.sets,!jw,m.retiro)}</span>${st.isAdmin&&m.reserva_id?`<button class="del" data-delres="${esc(m.reserva_id)}">Quitar</button>`:""}</div>`}).join("");
   el.innerHTML=`<div class="subhead">Escalerilla</div>
     <div class="card" style="padding:6px 8px">${P.length?`<table class="ladder">${head}<tbody>${P.map((x,i)=>row(x,i+1,true)).join("")}</tbody></table>`:'<p class="note" style="padding:10px">Todavía nadie completa sus 2 partidos de clasificación. El primero en hacerlo abre la escalerilla.</p>'}</div>
     ${P.length?'<p class="note"><span class="pos-key oro"></span>Copa Oro (1–8) · <span class="pos-key plata"></span>Copa Plata (9–16) · <span class="pos-key bronce"></span>Copa Bronce (17–24) · <span class="pos-key revancha"></span>Copa Revancha (25–32)</p>':""}
@@ -255,6 +255,7 @@ async function openResult(id,admin){
     $("resRival").innerHTML=`<option value="${r.user_id}" selected>${esc(r.reservo)}</option>`;$("resRival").disabled=true;
   }
   let sets=m?m.sets:[];if(st.resAsRival)sets=sets.map(([a,b])=>[b,a]);
+  const leftId=st.resAsRival?st.uid:r.user_id;st.retPre=m&&m.retiro?(m.retiro===leftId?"A":"B"):"";
   [["s1a","s1b"],["s2a","s2b"],["s3a","s3b"]].forEach(([x,y],i)=>{$(x).value=sets[i]?sets[i][0]:"";$(y).value=sets[i]?sets[i][1]:""});
   $("resDelete").hidden=!m;delete $("resDelete").dataset.armed;$("resDelete").textContent="Borrar este resultado";
   go("result");renderVerdict();
@@ -267,7 +268,7 @@ async function openFree(id){
   $("resInfo").innerHTML=`<b>${nice(m.fecha)}</b> · ${COURTS[m.cancha-1].name} · ${hh(m.hora)}<div class="note" style="margin-top:6px">Partido sin reserva. Anota el marcador desde el lado de <b>${esc(m.jugador)}</b>.</div>`;
   $("resRivalLabel").firstChild.textContent="Rival";
   $("resRival").innerHTML=`<option value="${m.rival_id}" selected>${esc(m.rival)}</option>`;$("resRival").disabled=true;
-  const sets=m.sets||[];
+  const sets=m.sets||[];st.retPre=m.retiro?(m.retiro===m.jugador_id?"A":"B"):"";
   [["s1a","s1b"],["s2a","s2b"],["s3a","s3b"]].forEach(([x,y],i)=>{$(x).value=sets[i]?sets[i][0]:"";$(y).value=sets[i]?sets[i][1]:""});
   $("resDelete").hidden=false;delete $("resDelete").dataset.armed;$("resDelete").textContent="Borrar este partido";
   go("result");renderVerdict();
@@ -281,25 +282,33 @@ async function openNewMatch(){
   $("nmErr").hidden=true;go("match");
 }
 function readSets(){
+  const ret=$("resRet").value;
   const v=id=>{const s=$(id).value.trim();return s===""?null:Number(s)};
   const sets=[[v("s1a"),v("s1b")],[v("s2a"),v("s2b")],[v("s3a"),v("s3b")]].filter(s=>s[0]!==null||s[1]!==null);
-  if(!sets.length)return {err:"Anota el marcador de al menos un set."};
+  if(!sets.length&&!ret)return {err:"Anota el marcador de al menos un set."};
   let a=0,c=0;
-  for(const [x,y] of sets){
+  for(const [k,[x,y]] of sets.entries()){
     if(x===null||y===null||!Number.isInteger(x)||!Number.isInteger(y)||x<0||y<0)return {err:"Completa los dos lados de cada set con números."};
-    if(x===y)return {err:"Un set no puede terminar empatado."};
-    x>y?a++:c++;
+    if(x===y&&!(ret&&k===sets.length-1))return {err:"Un set no puede terminar empatado."};
+    if(x>y)a++;else if(y>x)c++;
   }
+  if(ret)return {sets,win:ret==="B",a,c,ret};
   if(a===c)return {err:"Quedan empatados en sets. Anota el set que definió el partido."};
   return {sets,win:a>c,a,c};
 }
 function renderVerdict(){
-  const sel=$("resRival"),name=sel.value?sel.options[sel.selectedIndex].text:"Rival";
+  const sel=$("resRival"),name=sel.value?sel.options[sel.selectedIndex].text:"Rival",o=$("resOwnerName").textContent;
   $("resRivalName").textContent=name;
+  const rs=$("resRet"),cur=st.retPre!==undefined?st.retPre:rs.value;st.retPre=undefined;
+  rs.innerHTML=`<option value="">No, se jugó completo</option><option value="A">Se retiró ${esc(o==="Tú"?"yo":o)}</option><option value="B">Se retiró ${esc(name)}</option>`;rs.value=cur;
   const r=readSets(),v=$("resVerdict");
-  if(r.err){v.className="verdict bad";v.innerHTML=`<b>Revisa el marcador</b>${esc(r.err)}`}
-  else if(st.resAdmin){const o=$("resOwnerName").textContent;v.className="verdict";const w=r.win?o:name,l=r.win?name:o;v.innerHTML=`<b>Ganó ${esc(w)} ${Math.max(r.a,r.c)} sets a ${Math.min(r.a,r.c)}</b>${esc(w)} suma 1 punto. Si estaba más abajo que ${esc(l)}, toma su puesto.`}
-  else{v.className="verdict";v.innerHTML=r.win?`<b>Ganaste ${r.a} sets a ${r.c}</b>Sumas 1 punto${sel.value?`. Si ${esc(name)} está más arriba en la escalerilla, tomas su puesto.`:"."}`:`<b>Perdiste ${r.a} sets a ${r.c}</b>${sel.value?`${esc(name)} suma 1 punto.`:"El rival suma 1 punto."}`}
+  if(r.err){v.className="verdict bad";v.innerHTML=`<b>Revisa el marcador</b>${esc(r.err)}`;return}
+  v.className="verdict";
+  const me=!st.resAdmin&&o==="Tú",w=r.win?o:name,l=r.win?name:o;
+  if(r.ret){v.innerHTML=me?(r.win?`<b>Ganaste por retiro de ${esc(name)}</b>Sumas 1 punto. Los sets que faltaban cuentan para ti en el desempate.`:`<b>Perdiste por retiro</b>${esc(name)} suma 1 punto.`)
+    :`<b>Ganó ${esc(w)} por retiro de ${esc(l)}</b>${esc(w)} suma 1 punto. Los sets que faltaban cuentan para ${esc(w)} en el desempate.`;return}
+  v.innerHTML=me?(r.win?`<b>Ganaste ${r.a} sets a ${r.c}</b>Sumas 1 punto.`:`<b>Perdiste ${r.a} sets a ${r.c}</b>${esc(name)} suma 1 punto.`)
+    :`<b>Ganó ${esc(w)} ${Math.max(r.a,r.c)} sets a ${Math.min(r.a,r.c)}</b>${esc(w)} suma 1 punto.`;
 }
 function renderProfile(){
   const logged=!!st.uid;$("pCard").hidden=!logged;$("pLogin").hidden=logged;
@@ -362,7 +371,7 @@ function renderAdmin(){
     const pend=list.filter(r=>!resultOf(r.id)).length;
     const free=st.sinRes.map(m=>{const done=!!m.ganador_id,jw=m.ganador_id===m.jugador_id;
       return `<div class="card adm-item"><div class="row"><div><strong>${esc(m.jugador)} vs ${esc(m.rival)}</strong><div>${nice(m.fecha)} · ${hh(m.hora)} · ${COURTS[m.cancha-1].name}</div></div>${done?'<span class="pill w">Anotado</span>':'<span class="chip pendiente">Sin resultado</span>'}</div>
-        ${done?`<div class="result"><span><b>${esc(jw?m.jugador:m.rival)}</b> ganó a ${esc(jw?m.rival:m.jugador)}<br><span class="score">${setsTxt(m.sets,!jw)}</span></span></div>`:""}
+        ${done?`<div class="result"><span><b>${esc(jw?m.jugador:m.rival)}</b> ganó a ${esc(jw?m.rival:m.jugador)}<br><span class="score">${setsTxt(m.sets,!jw,m.retiro)}</span></span></div>`:""}
         <button class="btn-sm" data-free="${m.id}">${done?"Editar resultado":"Anotar resultado"}</button></div>`}).join("");
     body.innerHTML=`<div class="sec-title" style="margin-top:2px"><h4>Partidos sin reserva</h4></div>
       <button class="btn-sm" id="newMatch" style="margin-top:0">+ Partido sin reserva</button>
@@ -370,7 +379,7 @@ function renderAdmin(){
       <div class="sec-title" style="margin-top:8px"><h4>Partidos con reserva</h4></div>
       <p class="note">Partidos jugados en los últimos 45 días. Si los socios no anotan el resultado, puedes anotarlo tú. ${pend?`Faltan ${pend}.`:"No falta ninguno."}</p>`+
       (list.length?list.map(r=>{const m=resultOf(r.id),p=r.perfiles||{};
-        const txt=m?`<div class="result"><span><b>${esc(m.ganador_id===m.jugador_id?m.jugador:m.rival)}</b> ganó a ${esc(m.ganador_id===m.jugador_id?m.rival:m.jugador)}<br><span class="score">${setsTxt(m.sets,m.ganador_id!==m.jugador_id)}</span></span><span class="pill w">Anotado</span></div>`:"";
+        const txt=m?`<div class="result"><span><b>${esc(m.ganador_id===m.jugador_id?m.jugador:m.rival)}</b> ganó a ${esc(m.ganador_id===m.jugador_id?m.rival:m.jugador)}<br><span class="score">${setsTxt(m.sets,m.ganador_id!==m.jugador_id,m.retiro)}</span></span><span class="pill w">Anotado</span></div>`:"";
         return `<div class="card adm-item"><div class="row"><div><strong>${COURTS[r.cancha-1].name} · ${nice(r.fecha)}</strong><div>${hh(r.hora)} – ${hh(r.fin)} · reservó ${esc(p.nombre||"")}</div></div>${m?"":'<span class="chip pendiente">Sin resultado</span>'}</div>${txt}
         <button class="btn-sm" data-admres="${esc(r.id)}">${m?"Editar resultado":"Anotar resultado"}</button></div>`}).join("")
       :`<div class="card empty">No hay partidos jugados en los últimos 45 días.</div>`);
@@ -449,15 +458,17 @@ $("ladder").addEventListener("click",async e=>{
   if(error)return toast(errMsg(error));toast("Resultado quitado");refresh()});
 const resDone=async msg=>{toast(msg);await refresh();if(st.resAdmin){st.adm="res";go("admin")}else go("list")};
 $("resBack").onclick=()=>{if(st.resAdmin){st.adm="res";go("admin")}else go("list")};
-$("resRival").onchange=renderVerdict;
+$("resRival").onchange=renderVerdict;$("resRet").onchange=renderVerdict;
 document.querySelectorAll("#v-result .sets input").forEach(i=>i.addEventListener("input",renderVerdict));
 $("resForm").onsubmit=async e=>{e.preventDefault();
   const r=readSets();if(r.err)return showErr("resErr",r.err);
   if(!$("resRival").value)return showErr("resErr","Elige al socio contra quien jugaste.");
   $("resSave").disabled=true;
-  const {error}=st.resFree?await sb.rpc("resultado_partido",{p_id:st.resFree.id,p_sets:r.sets})
-    :st.resAsRival?await sb.rpc("registrar_resultado",{p_reserva:st.resTarget.id,p_rival:st.uid,p_sets:r.sets.map(([a,b])=>[b,a])})
-    :await sb.rpc("registrar_resultado",{p_reserva:st.resTarget.id,p_rival:$("resRival").value,p_sets:r.sets});
+  const L=st.resFree?st.resFree.jugador_id:st.resAsRival?st.uid:st.resTarget.user_id,R=st.resFree?st.resFree.rival_id:st.resAsRival?st.resTarget.user_id:$("resRival").value;
+  const ret=r.ret==="A"?L:r.ret==="B"?R:null;
+  const {error}=st.resFree?await sb.rpc("resultado_partido",{p_id:st.resFree.id,p_sets:r.sets,p_retiro:ret})
+    :st.resAsRival?await sb.rpc("registrar_resultado",{p_reserva:st.resTarget.id,p_rival:st.uid,p_sets:r.sets.map(([a,b])=>[b,a]),p_retiro:ret})
+    :await sb.rpc("registrar_resultado",{p_reserva:st.resTarget.id,p_rival:$("resRival").value,p_sets:r.sets,p_retiro:ret});
   $("resSave").disabled=false;
   if(error)return showErr("resErr",errMsg(error));
   resDone("Resultado guardado")};

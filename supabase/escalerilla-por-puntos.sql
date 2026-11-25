@@ -76,9 +76,11 @@ begin
 
   return query
     with sx0 as (
-      select m.jugador as pid, s.v as v from public.partidos m, jsonb_array_elements(m.sets) s(v) where m.ganador is not null
+      select m.jugador as pid, s.v as v from public.partidos m,
+             jsonb_array_elements(public.sets_efectivos(m.sets, m.ganador = m.jugador, m.retiro is not null)) s(v) where m.ganador is not null
       union all
-      select m.rival, jsonb_build_array(s.v -> 1, s.v -> 0) from public.partidos m, jsonb_array_elements(m.sets) s(v) where m.ganador is not null
+      select m.rival, jsonb_build_array(s.v -> 1, s.v -> 0) from public.partidos m,
+             jsonb_array_elements(public.sets_efectivos(m.sets, m.ganador = m.jugador, m.retiro is not null)) s(v) where m.ganador is not null
     ),
     sx as (
       select sx0.pid,
