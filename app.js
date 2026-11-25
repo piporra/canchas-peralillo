@@ -53,7 +53,14 @@ function nextOpen(){let best=null;for(let i=0;i<14;i++){const k=addDays(key(toda
 function isTaken(k,c,h){if(k===key(today)&&h<=new Date().getHours())return true;return st.occupied.has(`${k}|${c}|${h}`)}
 function played(r){const t=key(today);return r.fecha<t||(r.fecha===t&&r.hora<=new Date().getHours())}
 function resultOf(id){return st.recent.find(m=>m.reserva_id===id)}
-function setsTxt(sets,flip,ret){const t=(sets||[]).map(([a,b])=>flip?`${b}-${a}`:`${a}-${b}`).join(" · ");return ret?(t?t+" · ret.":"ret."):t}
+// Marcador oficial con retiro: sets terminados como se jugaron, el set cortado lo completa el ganador
+// (6 o 7 juegos) y los sets que faltaban van 6-0 para el ganador. Igual que sets_efectivos en la base.
+function setsOficial(sets,gj){const out=[];let nw=0;
+  for(const [a,b] of sets||[]){const hi=Math.max(a,b),lo=Math.min(a,b);
+    if((hi>=6&&hi-lo>=2)||(hi===7&&(lo===5||lo===6))){out.push([a,b]);if((a>b)===gj)nw++}
+    else{let l=gj?b:a;const w=l>=5?7:6;l=Math.min(l,6);out.push(gj?[w,l]:[l,w]);nw++}}
+  while(nw<2){out.push(gj?[6,0]:[0,6]);nw++}return out}
+function setsTxt(sets,flip,ret,gj){if(ret)sets=setsOficial(sets,gj);const t=(sets||[]).map(([a,b])=>flip?`${b}-${a}`:`${a}-${b}`).join(" · ");return ret?t+" (ret.)":t}
 const placed=()=>st.ladder.filter(x=>x.clasificado!==false);
 function myDayCount(k){return st.mine.filter(r=>r.estado==="confirmada"&&r.fecha===k).length}
 function fmtJ(a){return a.map(([x,y])=>`${x}–${y}`).join(", ")+" h"}
@@ -217,7 +224,7 @@ function renderList(){
       if(!m)return card(r,{below:`<button class="btn-sm" data-result="${esc(r.id)}">Anotar resultado</button>`});
       const won=m.ganador_id===st.uid;
       const flip=m.rival_id===st.uid;
-      return card(r,{below:`<div class="result"><span>vs <b>${esc(flip?m.jugador:m.rival)}</b><br><span class="score">${setsTxt(m.sets,flip,m.retiro)}</span></span><span style="display:flex;flex-direction:column;align-items:flex-end;gap:4px"><span class="pill ${won?"w":"l"}">${won?"Ganaste":"Perdiste"}</span><button class="link" data-result="${esc(r.id)}" style="font-size:12px">Editar</button></span></div>`})}).join("");
+      return card(r,{below:`<div class="result"><span>vs <b>${esc(flip?m.jugador:m.rival)}</b><br><span class="score">${setsTxt(m.sets,flip,m.retiro,m.ganador_id===m.jugador_id)}</span></span><span style="display:flex;flex-direction:column;align-items:flex-end;gap:4px"><span class="pill ${won?"w":"l"}">${won?"Ganaste":"Perdiste"}</span><button class="link" data-result="${esc(r.id)}" style="font-size:12px">Editar</button></span></div>`})}).join("");
   }
   $("list").innerHTML=html;
 }
@@ -230,7 +237,7 @@ function renderLadder(){
   const head='<thead><tr><th>#</th><th>Nombre</th><th>Pts</th><th>PJ</th><th>PG</th><th>PP</th><th title="Diferencia de partidos">Dif P</th><th title="Diferencia de sets">Dif S</th></tr></thead>';
   const P=placed(),Q=st.ladder.filter(x=>x.clasificado===false);
   const recent=st.recent.slice(0,10).map(m=>{const jw=m.ganador_id===m.jugador_id;const w=jw?m.jugador:m.rival,l=jw?m.rival:m.jugador;
-    return `<div class="match"><span><b>${esc(w)}</b> ganó a ${esc(l)}<em>${nice(m.fecha)} · ${COURTS[m.cancha-1].name}</em></span><span class="score">${setsTxt(m.sets,!jw,m.retiro)}</span>${st.isAdmin&&m.reserva_id?`<button class="del" data-delres="${esc(m.reserva_id)}">Quitar</button>`:""}</div>`}).join("");
+    return `<div class="match"><span><b>${esc(w)}</b> ganó a ${esc(l)}<em>${nice(m.fecha)} · ${COURTS[m.cancha-1].name}</em></span><span class="score">${setsTxt(m.sets,!jw,m.retiro,jw)}</span>${st.isAdmin&&m.reserva_id?`<button class="del" data-delres="${esc(m.reserva_id)}">Quitar</button>`:""}</div>`}).join("");
   el.innerHTML=`<div class="subhead">Escalerilla</div>
     <div class="card" style="padding:6px 8px">${P.length?`<table class="ladder">${head}<tbody>${P.map((x,i)=>row(x,i+1,true)).join("")}</tbody></table>`:'<p class="note" style="padding:10px">Todavía nadie completa sus 2 partidos de clasificación. El primero en hacerlo abre la escalerilla.</p>'}</div>
     ${P.length?'<p class="note"><span class="pos-key oro"></span>Copa Oro (1–8) · <span class="pos-key plata"></span>Copa Plata (9–16) · <span class="pos-key bronce"></span>Copa Bronce (17–24) · <span class="pos-key revancha"></span>Copa Revancha (25–32)</p>':""}
@@ -371,7 +378,7 @@ function renderAdmin(){
     const pend=list.filter(r=>!resultOf(r.id)).length;
     const free=st.sinRes.map(m=>{const done=!!m.ganador_id,jw=m.ganador_id===m.jugador_id;
       return `<div class="card adm-item"><div class="row"><div><strong>${esc(m.jugador)} vs ${esc(m.rival)}</strong><div>${nice(m.fecha)} · ${hh(m.hora)} · ${COURTS[m.cancha-1].name}</div></div>${done?'<span class="pill w">Anotado</span>':'<span class="chip pendiente">Sin resultado</span>'}</div>
-        ${done?`<div class="result"><span><b>${esc(jw?m.jugador:m.rival)}</b> ganó a ${esc(jw?m.rival:m.jugador)}<br><span class="score">${setsTxt(m.sets,!jw,m.retiro)}</span></span></div>`:""}
+        ${done?`<div class="result"><span><b>${esc(jw?m.jugador:m.rival)}</b> ganó a ${esc(jw?m.rival:m.jugador)}<br><span class="score">${setsTxt(m.sets,!jw,m.retiro,jw)}</span></span></div>`:""}
         <button class="btn-sm" data-free="${m.id}">${done?"Editar resultado":"Anotar resultado"}</button></div>`}).join("");
     body.innerHTML=`<div class="sec-title" style="margin-top:2px"><h4>Partidos sin reserva</h4></div>
       <button class="btn-sm" id="newMatch" style="margin-top:0">+ Partido sin reserva</button>
@@ -379,7 +386,7 @@ function renderAdmin(){
       <div class="sec-title" style="margin-top:8px"><h4>Partidos con reserva</h4></div>
       <p class="note">Partidos jugados en los últimos 45 días. Si los socios no anotan el resultado, puedes anotarlo tú. ${pend?`Faltan ${pend}.`:"No falta ninguno."}</p>`+
       (list.length?list.map(r=>{const m=resultOf(r.id),p=r.perfiles||{};
-        const txt=m?`<div class="result"><span><b>${esc(m.ganador_id===m.jugador_id?m.jugador:m.rival)}</b> ganó a ${esc(m.ganador_id===m.jugador_id?m.rival:m.jugador)}<br><span class="score">${setsTxt(m.sets,m.ganador_id!==m.jugador_id,m.retiro)}</span></span><span class="pill w">Anotado</span></div>`:"";
+        const txt=m?`<div class="result"><span><b>${esc(m.ganador_id===m.jugador_id?m.jugador:m.rival)}</b> ganó a ${esc(m.ganador_id===m.jugador_id?m.rival:m.jugador)}<br><span class="score">${setsTxt(m.sets,m.ganador_id!==m.jugador_id,m.retiro,m.ganador_id===m.jugador_id)}</span></span><span class="pill w">Anotado</span></div>`:"";
         return `<div class="card adm-item"><div class="row"><div><strong>${COURTS[r.cancha-1].name} · ${nice(r.fecha)}</strong><div>${hh(r.hora)} – ${hh(r.fin)} · reservó ${esc(p.nombre||"")}</div></div>${m?"":'<span class="chip pendiente">Sin resultado</span>'}</div>${txt}
         <button class="btn-sm" data-admres="${esc(r.id)}">${m?"Editar resultado":"Anotar resultado"}</button></div>`}).join("")
       :`<div class="card empty">No hay partidos jugados en los últimos 45 días.</div>`);
