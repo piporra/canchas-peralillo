@@ -200,3 +200,47 @@ nav.bottom button{padding:4px 8px}
 .pstats{display:grid;grid-template-columns:repeat(6,1fr);gap:4px;padding:10px 8px;text-align:center}
 .pstat b{display:block;font-family:var(--display);font-size:22px;color:var(--green);line-height:1}
 .pstat span{font-size:10px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+
+/* ===== Cuadro de finales ===== */
+.cq-tabs{display:flex;gap:6px;flex-wrap:wrap}
+.cq-tabs button{border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:7px 12px;font-weight:800;font-size:13px;color:var(--ink,inherit);display:flex;align-items:center;gap:6px}
+.cq-tabs button i{width:10px;height:10px;border-radius:50%;display:inline-block}
+.cq-tabs button[aria-pressed="true"]{background:var(--green);color:#fff;border-color:var(--green)}
+.cq-wrap{width:100%;overflow:hidden;border-radius:18px;box-shadow:0 8px 24px rgba(0,0,0,.18)}
+.cq{width:540px;height:960px;position:relative;overflow:hidden;color:#fff;transform-origin:0 0;font-family:"Nunito Sans",sans-serif;
+  --c1:#f5c542;--c2:#b8860b;--ink:#5a2a10;
+  background:linear-gradient(180deg,rgba(15,25,40,.55) 0%,rgba(15,25,40,.25) 26%,rgba(60,20,5,.15) 45%,rgba(50,15,3,.55) 75%,rgba(35,10,2,.8) 100%),url(cuadro-fondo.jpg) center 62%/cover,#b5532a}
+.cq.plata{--c1:#eef1f3;--c2:#9aa5ad}.cq.bronce{--c1:#f0b27a;--c2:#9c5a24}.cq.revancha{--c1:#8fe3b0;--c2:#1f7a4a}
+.cq-head{position:relative;padding:34px 30px 0;display:flex;align-items:center;gap:14px;text-shadow:0 2px 8px rgba(0,0,0,.45)}
+.cq-head img{width:62px;height:62px;border-radius:50%;box-shadow:0 4px 14px rgba(0,0,0,.35);background:#fff}
+.cq-club{font-family:"Saira Condensed",sans-serif;font-weight:800;font-size:19px;letter-spacing:.06em;line-height:1.05;text-transform:uppercase}
+.cq-club span{display:block;font-family:"Nunito Sans",sans-serif;font-weight:700;font-size:12.5px;letter-spacing:.18em;opacity:.85;margin-top:3px}
+.cq-title{position:relative;padding:26px 30px 0;text-shadow:0 2px 8px rgba(0,0,0,.45)}
+.cq-kicker{font-weight:800;font-size:12px;letter-spacing:.32em;text-transform:uppercase;opacity:.9}
+.cq-cup{font-family:"Saira Condensed",sans-serif;font-weight:800;font-size:76px;line-height:.9;text-transform:uppercase;margin-top:6px;text-shadow:none;
+  background:linear-gradient(180deg,var(--c1) 20%,var(--c2) 100%);-webkit-background-clip:text;background-clip:text;color:transparent;filter:drop-shadow(0 3px 0 rgba(30,10,0,.55))}
+.cq-range{display:inline-block;margin-top:10px;font-weight:800;font-size:13px;letter-spacing:.12em;text-transform:uppercase;padding:6px 12px;border-radius:999px;background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.35)}
+.cq-rounds{position:relative;display:grid;grid-template-columns:192px 144px 130px;gap:14px;padding:26px 23px 0;font-family:"Saira Condensed",sans-serif;font-weight:700;font-size:14px;letter-spacing:.2em;text-transform:uppercase;opacity:.92;text-shadow:0 2px 8px rgba(0,0,0,.45)}
+.cq-br{position:absolute;left:23px;top:330px;width:494px;height:470px}
+.cq-m{position:absolute;border-radius:12px;background:rgba(255,250,245,.95);box-shadow:0 6px 18px rgba(30,10,0,.35);overflow:hidden;color:var(--ink)}
+.cq-p{display:flex;align-items:center;height:36px;padding:0 9px 0 0;gap:8px;font-weight:800;font-size:13.5px;white-space:nowrap}
+.cq-p+.cq-p{border-top:1px solid #f0dccd}
+.cq-seed{width:30px;height:100%;display:flex;align-items:center;justify-content:center;font-family:"Saira Condensed",sans-serif;font-weight:800;font-size:15px;background:linear-gradient(180deg,var(--c1),var(--c2));color:#3a1a05;flex:0 0 auto}
+.revancha .cq-seed{color:#06301b}
+.cq-p .n{overflow:hidden;text-overflow:ellipsis;flex:1}
+.cq-p .sc{font-family:"Saira Condensed",sans-serif;font-weight:700;font-size:14px;color:#b98a6c}
+.cq-p.tbd .n{color:#c39a80;font-style:italic;font-weight:700}
+.cq-p.tbd.ns{padding-left:12px}
+.cq-p.tbd .cq-seed{background:#f3e3d6;color:#c39a80}
+.cq-p.me{background:#fff2c9}
+.cq svg.cn{position:absolute;inset:0;overflow:visible}
+.cq-champ{position:absolute;left:23px;right:23px;bottom:34px;display:flex;align-items:center;gap:14px;padding:14px 18px;border-radius:16px;background:rgba(25,8,0,.45);border:1px solid rgba(255,255,255,.25)}
+.cq-champ svg{width:46px;height:46px;flex:0 0 auto}
+.cq-champ b{font-family:"Saira Condensed",sans-serif;font-weight:800;font-size:24px;letter-spacing:.04em;text-transform:uppercase;display:block;line-height:1}
+.cq-champ span{font-size:12.5px;font-weight:700;opacity:.85}
+.cq-champ .slot{margin-left:auto;font-family:"Saira Condensed",sans-serif;font-weight:700;font-size:16px;padding:8px 14px;border-radius:10px;border:1.5px dashed rgba(255,255,255,.55);letter-spacing:.08em;text-transform:uppercase}
+nav.bottom .in{justify-content:space-between;padding:0 4px}
+nav.bottom button{flex:1 1 0;min-width:0;padding:4px 2px;font-size:10px;letter-spacing:.02em}
+.cq-cup{white-space:nowrap}
+.cq.revancha .cq-cup{font-size:66px}
+nav.bottom button{white-space:nowrap;overflow:hidden;text-overflow:clip}

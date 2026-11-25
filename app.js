@@ -333,6 +333,36 @@ function renderPlayer(){
         <span style="text-align:right"><span class="pill ${won?"w":"l"}">${won?"Ganó":"Perdió"}</span><em class="score" style="display:block;margin-top:3px">${setsTxt(m.sets,!yo,m.retiro,m.ganador_id===m.jugador_id)}</em></span></div>`}).join("")
       :'<p class="note" style="padding:8px 0">Todavía no tiene partidos anotados.</p>'}</div>`;
 }
+const COPAS=[["oro","Copa Oro",0,"#f5c542","#b8860b"],["plata","Copa Plata",8,"#eef1f3","#9aa5ad"],["bronce","Copa Bronce",16,"#f0b27a","#9c5a24"],["revancha","Copa Revancha",24,"#8fe3b0","#1f7a4a"]];
+function cuadroHTML([cls,cup,off,c1,c2],P){
+  const short=n=>{const w=String(n).trim().split(/\s+/),cap=x=>x.charAt(0).toUpperCase()+x.slice(1).toLowerCase();return w.length>2?cap(w[0])+" "+cap(w[w.length-2]):w.map(cap).join(" ")};
+  const row=q=>`<div class="cq-p${q.tbd?" tbd":""}${q.tbd&&q.s==null?" ns":""}${q.id&&q.id===st.uid?" me":""}">${q.tbd&&q.s==null?"":`<span class="cq-seed">${q.s??""}</span>`}<span class="n">${esc(q.n)}</span><span class="sc">${q.tbd?"":"– –"}</span></div>`;
+  const mt=(x,y,w,a,b)=>`<div class="cq-m" style="left:${x}px;top:${y}px;width:${w}px">${row(a)}${row(b)}</div>`;
+  const H=73,sx=214,fx=370,qw=192,sw=136,fw=124,qy=[0,122,256,378],sy=[61,317],fy=189;
+  const pl=i=>P[i]?{s:i+1,n:short(P[i].nombre),id:P[i].id}:{s:i+1,n:"Por definir",tbd:1};
+  const c=(x1,y1,x2,y2,ym)=>`<path d="M${x1} ${y1} H${(x1+x2)/2} V${ym} M${(x1+x2)/2} ${y2} V${ym} H${x2}"/>`;
+  let o=`<div class="cq ${cls}"><div class="cq-head"><img src="logo.png" alt=""><div class="cq-club">Club de Tenis Peralillo<span>Escalerilla 2026 · Finales</span></div></div>
+    <div class="cq-title"><div class="cq-kicker">Cuadro de la</div><div class="cq-cup">${cup}</div><div class="cq-range">Puestos ${off+1} al ${off+8}</div></div>
+    <div class="cq-rounds"><span>Cuartos</span><span>Semifinal</span><span>Final</span></div>
+    <div class="cq-br"><svg class="cn" width="494" height="470"><g stroke="rgba(255,255,255,.9)" stroke-width="3" fill="none" stroke-linecap="round">${c(qw,qy[0]+H/2,sx,qy[1]+H/2,sy[0]+H/2)}${c(qw,qy[2]+H/2,sx,qy[3]+H/2,sy[1]+H/2)}${c(sx+sw,sy[0]+H/2,fx,sy[1]+H/2,fy+H/2)}</g></svg>`;
+  [[0,7],[3,4],[2,5],[1,6]].forEach(([a,b],i)=>{o+=mt(0,qy[i],qw,pl(a),pl(b))});
+  o+=mt(sx,sy[0],sw,{n:"Ganador C1",tbd:1},{n:"Ganador C2",tbd:1})+mt(sx,sy[1],sw,{n:"Ganador C3",tbd:1},{n:"Ganador C4",tbd:1})+mt(fx,fy,fw,{n:"Ganador S1",tbd:1},{n:"Ganador S2",tbd:1});
+  o+=`</div><div class="cq-champ"><svg viewBox="0 0 48 48"><defs><linearGradient id="tg-${cls}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${c1}"/><stop offset="1" stop-color="${c2}"/></linearGradient></defs><path fill="url(#tg-${cls})" d="M14 6h20v6h7v4c0 6-4 10-9 11-1 4-4 7-6 8v5h6v4H16v-4h6v-5c-2-1-5-4-6-8-5-1-9-5-9-11v-4h7zm-3 10c0 3 2 6 4 7-1-2-1-4-1-7zm26 0h-3c0 3 0 5-1 7 2-1 4-4 4-7z"/></svg>
+    <div><b>Campeón ${cup}</b><span>Se define el día de finales</span></div><div class="slot">Por definir</div></div></div>`;
+  return o}
+function fitCuadro(){const w=document.querySelector("#cuadroBody .cq-wrap");if(!w)return;const k=w.clientWidth/540;const q=w.querySelector(".cq");q.style.transform=`scale(${k})`;w.style.height=(960*k)+"px"}
+function renderCuadro(){
+  const body=$("cuadroBody");
+  if(!st.uid){$("cuadroNote").textContent="";body.innerHTML=`<div class="card empty">Ingresa con tu cuenta para ver el cuadro.<br><br><button class="cta" data-login="cuadro">Ingresar</button></div>`;return}
+  // Orden de la escalerilla: primero los que tienen puesto, luego los que están en clasificación.
+  const L=[...placed(),...st.ladder.filter(x=>x.clasificado===false)];
+  if(st.copa===undefined){const me=L.findIndex(x=>x.id===st.uid);st.copa=me>=0&&me<32?Math.floor(me/8):0}
+  $("cuadroNote").textContent="Así quedarían los cruces si la escalerilla terminara hoy. Se van actualizando con cada resultado y quedan fijos cuando se cierre la escalerilla.";
+  body.innerHTML=`<div class="cq-tabs">${COPAS.map((c,i)=>`<button data-copa="${i}" aria-pressed="${i===st.copa}"><i style="background:linear-gradient(${c[3]},${c[4]})"></i>${c[1].replace("Copa ","")}</button>`).join("")}</div>
+    <div class="cq-wrap">${cuadroHTML(COPAS[st.copa],L.slice(COPAS[st.copa][2],COPAS[st.copa][2]+8))}</div>`;
+  fitCuadro();
+}
+window.addEventListener("resize",fitCuadro);
 function renderProfile(){
   const logged=!!st.uid;$("pCard").hidden=!logged;$("pLogin").hidden=logged;
   if(logged){const ok=st.alDia.has(st.uid);$("pCuota").innerHTML=`${ok?`<span class="cuota ok">Al día</span> <span style="color:var(--muted);font-weight:600">${MONTHS[today.getMonth()]} · $5.000 mensual</span>`:`<span style="color:var(--muted);font-weight:600">Sin registrar este mes · puedes reservar igual</span>`}`;
@@ -443,12 +473,13 @@ function renderAll(){
   if(st.view==="admin"&&!(st.adm==="tar"&&st.draft))renderAdmin();
   if(st.view==="profile")renderProfile();
   if(st.view==="player")renderPlayer();
+  if(st.view==="cuadro")renderCuadro();
   renderCta();
 }
 function go(v){
   st.view=v;
-  for(const id of ["book","auth","setup","recover","confirm","done","list","result","edit","match","ladder","player","admin","profile"])$("v-"+id).hidden=id!==v;
-  const tab=v==="edit"?(st.editAdmin?"admin":"list"):v==="match"?"admin":v==="player"?"ladder":v==="result"?(st.resAdmin?"admin":"list"):["list","ladder","profile","admin"].includes(v)?v:"book";
+  for(const id of ["book","auth","setup","recover","confirm","done","list","result","edit","match","ladder","player","cuadro","admin","profile"])$("v-"+id).hidden=id!==v;
+  const tab=v==="edit"?(st.editAdmin?"admin":"list"):v==="match"?"admin":v==="player"?"ladder":v==="result"?(st.resAdmin?"admin":"list"):["list","ladder","cuadro","profile","admin"].includes(v)?v:"book";
   document.querySelectorAll("#nav button").forEach(b=>{if(b.dataset.tab===tab)b.setAttribute("aria-current","page");else b.removeAttribute("aria-current")});
   renderAll();window.scrollTo(0,0);
 }
@@ -472,7 +503,7 @@ $("next").onclick=()=>{st.offset+=5;renderDates()};
 $("slots").onclick=e=>{const b=e.target.closest("[data-h]");if(!b||b.disabled)return;st.hour=+b.dataset.h;renderSlots();renderCta()};
 $("back").onclick=()=>go("book");
 document.querySelectorAll("#nav button").forEach(b=>b.onclick=()=>{
-  if((b.dataset.tab==="list"||b.dataset.tab==="ladder")&&!st.uid){go(b.dataset.tab);return}
+  if((b.dataset.tab==="list"||b.dataset.tab==="ladder"||b.dataset.tab==="cuadro")&&!st.uid){go(b.dataset.tab);return}
   go(b.dataset.tab);if(b.dataset.tab!=="book")refresh()});
 $("ladder").addEventListener("click",async e=>{
   if(e.target.closest("[data-login]"))return openLogin("ladder");
@@ -602,6 +633,8 @@ $("goLogin").onclick=()=>openLogin("profile");
 $("fotoInput").onchange=e=>{const f=e.target.files&&e.target.files[0];if(f)subirFoto(f,e.target.dataset.socio||st.uid)};
 $("pFotoBtn").onclick=()=>pickFoto(st.uid);
 document.addEventListener("click",async e=>{
+  const cp=e.target.closest("[data-copa]");if(cp){st.copa=+cp.dataset.copa;renderCuadro();return}
+  const lg=e.target.closest("#cuadroBody [data-login]");if(lg){openLogin("cuadro");return}
   const pr=e.target.closest("tr[data-player]");if(pr){st.playerId=pr.dataset.player;go("player");return}
   const fb=e.target.closest("[data-foto]");if(fb&&st.isAdmin){pickFoto(fb.dataset.foto);return}
   const w=e.target.closest("[data-pweek]");if(w){st.progOff=(st.progOff||0)+Number(w.dataset.pweek);renderAdmin();return}
