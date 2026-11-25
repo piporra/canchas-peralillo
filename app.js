@@ -233,7 +233,7 @@ function renderLadder(){
   if(!st.uid){$("ladderNote").textContent="";el.innerHTML=`<div class="card empty">Ingresa con tu cuenta para ver la escalerilla.<br><br><button class="cta" data-login="1">Ingresar</button></div>`;return}
   $("ladderNote").textContent="1 punto por partido ganado. Tus 2 primeros partidos son de clasificación: al completarlos entras a la escalerilla. Todos contra todos: puedes jugar con cualquier socio. La escalerilla se ordena por puntos. Si hay empate, desempata la diferencia de sets (Dif S) y luego la diferencia de games. Dif P es la diferencia de partidos ganados y perdidos. Finales: Copa Oro (1–8), Copa Plata (9–16), Copa Bronce (17–24) y Copa Revancha (25–32).";
   const sg=d=>d>0?"+"+d:String(d);
-  const row=(x,n,zone)=>`<tr class="${zone?(n<=8?"oro":n<=16?"plata":n<=24?"bronce":n<=32?"revancha":""):""}${x.id===st.uid?" me":""}"><td><span class="pos">${n}</span></td><td><div class="nm">${avatar(x.id,x.nombre,30)}<div>${esc(x.nombre)}${x.id===st.uid?" (tú)":""}<br>${st.alDia.has(x.id)?'<span class="cuota ok">Cuota al día</span>':st.isAdmin?'<span class="cuota no">Cuota pendiente</span>':""}</div></div></td><td class="pts">${x.pts??x.pg}</td><td>${x.pj}</td><td>${x.pg}</td><td>${x.pp}</td><td class="dif">${x.pj?sg(x.pg-x.pp):"-"}</td><td class="dif">${x.pj?sg(x.dif):"-"}</td></tr>`;
+  const row=(x,n,zone)=>`<tr data-player="${x.id}" class="${zone?(n<=8?"oro":n<=16?"plata":n<=24?"bronce":n<=32?"revancha":""):""}${x.id===st.uid?" me":""}"><td><span class="pos">${n}</span></td><td><div class="nm">${avatar(x.id,x.nombre,30)}<div>${esc(x.nombre)}${x.id===st.uid?" (tú)":""}<br>${st.alDia.has(x.id)?'<span class="cuota ok">Cuota al día</span>':st.isAdmin?'<span class="cuota no">Cuota pendiente</span>':""}</div></div></td><td class="pts">${x.pts??x.pg}</td><td>${x.pj}</td><td>${x.pg}</td><td>${x.pp}</td><td class="dif">${x.pj?sg(x.pg-x.pp):"-"}</td><td class="dif">${x.pj?sg(x.dif):"-"}</td></tr>`;
   const head='<thead><tr><th>#</th><th>Nombre</th><th>Pts</th><th>PJ</th><th>PG</th><th>PP</th><th title="Diferencia de partidos">Dif P</th><th title="Diferencia de sets">Dif S</th></tr></thead>';
   const P=placed(),Q=st.ladder.filter(x=>x.clasificado===false);
   const recent=st.recent.slice(0,10).map(m=>{const jw=m.ganador_id===m.jugador_id;const w=jw?m.jugador:m.rival,l=jw?m.rival:m.jugador;
@@ -316,6 +316,22 @@ function renderVerdict(){
     :`<b>Ganó ${esc(w)} por retiro de ${esc(l)}</b>${esc(w)} suma 1 punto. Los sets que faltaban cuentan para ${esc(w)} en el desempate.`;return}
   v.innerHTML=me?(r.win?`<b>Ganaste ${r.a} sets a ${r.c}</b>Sumas 1 punto.`:`<b>Perdiste ${r.a} sets a ${r.c}</b>${esc(name)} suma 1 punto.`)
     :`<b>Ganó ${esc(w)} ${Math.max(r.a,r.c)} sets a ${Math.min(r.a,r.c)}</b>${esc(w)} suma 1 punto.`;
+}
+function renderPlayer(){
+  const id=st.playerId,x=st.ladder.find(y=>y.id===id);if(!x){go("ladder");return}
+  const P=placed(),pos=P.findIndex(y=>y.id===id)+1,copa=!pos?"":pos<=8?"Copa Oro":pos<=16?"Copa Plata":pos<=24?"Copa Bronce":pos<=32?"Copa Revancha":"";
+  const ms=st.recent.filter(m=>m.jugador_id===id||m.rival_id===id);
+  const sg=d=>d>0?"+"+d:String(d);
+  const stat=(n,l)=>`<div class="pstat"><b>${n}</b><span>${l}</span></div>`;
+  $("playerBody").innerHTML=`<div class="card" style="display:flex;align-items:center;gap:14px">${avatar(id,x.nombre,72)}
+      <div style="min-width:0"><div style="font-family:var(--display);font-size:22px;font-weight:800;text-transform:uppercase;color:var(--green);line-height:1.05">${esc(x.nombre)}</div>
+      <div class="note" style="margin-top:4px">${pos?`Puesto ${pos} de la escalerilla${copa?" · "+copa:""}`:`En clasificación · ${x.pj} de 2 partidos`}</div></div></div>
+    <div class="card pstats">${stat(x.pts??x.pg,"Pts")}${stat(x.pj,"PJ")}${stat(x.pg,"PG")}${stat(x.pp,"PP")}${stat(x.pj?sg(x.pg-x.pp):"-","Dif P")}${stat(x.pj?sg(x.dif):"-","Dif S")}</div>
+    <div class="subhead">Partidos jugados</div>
+    <div class="card" style="padding:4px 12px">${ms.length?ms.map(m=>{const yo=m.jugador_id===id,won=m.ganador_id===id,riv=yo?m.rival:m.jugador,rid=yo?m.rival_id:m.jugador_id;
+      return `<div class="match"><span style="display:flex;align-items:center;gap:8px">${avatar(rid,riv,32)}<span style="min-width:0">vs <b>${esc(riv)}</b><em>${nice(m.fecha)} · ${hh(m.hora)} · ${COURTS[m.cancha-1].name}</em></span></span>
+        <span style="text-align:right"><span class="pill ${won?"w":"l"}">${won?"Ganó":"Perdió"}</span><em class="score" style="display:block;margin-top:3px">${setsTxt(m.sets,!yo,m.retiro,m.ganador_id===m.jugador_id)}</em></span></div>`}).join("")
+      :'<p class="note" style="padding:8px 0">Todavía no tiene partidos anotados.</p>'}</div>`;
 }
 function renderProfile(){
   const logged=!!st.uid;$("pCard").hidden=!logged;$("pLogin").hidden=logged;
@@ -426,12 +442,13 @@ function renderAll(){
   if(st.view==="ladder")renderLadder();
   if(st.view==="admin"&&!(st.adm==="tar"&&st.draft))renderAdmin();
   if(st.view==="profile")renderProfile();
+  if(st.view==="player")renderPlayer();
   renderCta();
 }
 function go(v){
   st.view=v;
-  for(const id of ["book","auth","setup","recover","confirm","done","list","result","edit","match","ladder","admin","profile"])$("v-"+id).hidden=id!==v;
-  const tab=v==="edit"?(st.editAdmin?"admin":"list"):v==="match"?"admin":v==="result"?(st.resAdmin?"admin":"list"):["list","ladder","profile","admin"].includes(v)?v:"book";
+  for(const id of ["book","auth","setup","recover","confirm","done","list","result","edit","match","ladder","player","admin","profile"])$("v-"+id).hidden=id!==v;
+  const tab=v==="edit"?(st.editAdmin?"admin":"list"):v==="match"?"admin":v==="player"?"ladder":v==="result"?(st.resAdmin?"admin":"list"):["list","ladder","profile","admin"].includes(v)?v:"book";
   document.querySelectorAll("#nav button").forEach(b=>{if(b.dataset.tab===tab)b.setAttribute("aria-current","page");else b.removeAttribute("aria-current")});
   renderAll();window.scrollTo(0,0);
 }
@@ -464,6 +481,7 @@ $("ladder").addEventListener("click",async e=>{
   const {error}=await sb.rpc("borrar_resultado",{p_reserva:d.dataset.delres});
   if(error)return toast(errMsg(error));toast("Resultado quitado");refresh()});
 const resDone=async msg=>{toast(msg);await refresh();if(st.resAdmin){st.adm="res";go("admin")}else go("list")};
+$("playerBack").onclick=()=>go("ladder");
 $("resBack").onclick=()=>{if(st.resAdmin){st.adm="res";go("admin")}else go("list")};
 $("resRival").onchange=renderVerdict;$("resRet").onchange=renderVerdict;
 document.querySelectorAll("#v-result .sets input").forEach(i=>i.addEventListener("input",renderVerdict));
@@ -584,6 +602,7 @@ $("goLogin").onclick=()=>openLogin("profile");
 $("fotoInput").onchange=e=>{const f=e.target.files&&e.target.files[0];if(f)subirFoto(f,e.target.dataset.socio||st.uid)};
 $("pFotoBtn").onclick=()=>pickFoto(st.uid);
 document.addEventListener("click",async e=>{
+  const pr=e.target.closest("tr[data-player]");if(pr){st.playerId=pr.dataset.player;go("player");return}
   const fb=e.target.closest("[data-foto]");if(fb&&st.isAdmin){pickFoto(fb.dataset.foto);return}
   const w=e.target.closest("[data-pweek]");if(w){st.progOff=(st.progOff||0)+Number(w.dataset.pweek);renderAdmin();return}
   if(e.target.closest("#progCopy")){const t=progText();
